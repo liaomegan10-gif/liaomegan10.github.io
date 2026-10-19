@@ -127,3 +127,6 @@ elif page == "Basic Life Support":
     st.title("Basic Life Support Trainings")
     st.info("Tourniquet tying")
     st.info("Narcan Training")
+
+if st.button("Tourniquet Tying"):
+    show_page2()
