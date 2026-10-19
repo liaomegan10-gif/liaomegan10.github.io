@@ -126,3 +126,6 @@ elif page == "Basic Life Support":
     st.title("Basic Life Support Trainings")
     st.info("Tourniquet tying")
     st.info("Narcan Training")
+
+Tourniquet tying = st.Button(Basic Life Support, text="Tourniquet tying", command=show_page2)
+btn_to_page2.pack()
