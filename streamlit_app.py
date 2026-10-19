@@ -1,19 +1,19 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Care Companion",
-    page_icon="💙",
+    page_title="Health Translation",
+    page_icon="🫀",
     layout="wide",
 )
  
 # Sidebar navigation
-st.sidebar.title("💙 Care Companion")
+st.sidebar.title("Healthcare Translator")
 page = st.sidebar.radio(
     "Navigation",
-    ["Dashboard", "Add a Task", "About"],
+    ["Chat", "History", "Basic Life Support"],
 )
 
-if page == "Dashboard":
+if page == "Chat":
     st.title("Your Care Dashboard")
     st.write("Welcome back! Here's your overview.")
 
@@ -28,7 +28,7 @@ if page == "Dashboard":
     st.info("Morning medication reminder")
     st.success("Appointment confirmed")
 
-elif page == "Add a Task":
+elif page == "History":
     st.title("Add a Care Task")
 
     with st.form("task_form"):
@@ -47,6 +47,6 @@ elif page == "Add a Task":
         else:
             st.warning("Please enter a task name.")
 
-else:
+elif page == "Basic Life Support":
     st.title("About Care Companion")
     st.write("A simple tool to help organize care tasks.")
