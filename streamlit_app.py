@@ -5,6 +5,7 @@ st.set_page_config(
     page_icon="🫀",
     layout="wide",
 )
+st.markdown('<style>[data-testid="stSidebar"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
  
 # Sidebar navigation
 st.sidebar.title("Healthcare Translator")
@@ -126,7 +127,3 @@ elif page == "Basic Life Support":
     st.title("Basic Life Support Trainings")
     st.info("Tourniquet tying")
     st.info("Narcan Training")
-
-if st.button("Tourniquet Tying"):
-    show_page2()
-btn_to_page2.pack()
