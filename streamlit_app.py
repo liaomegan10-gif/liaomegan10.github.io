@@ -129,4 +129,3 @@ elif page == "Basic Life Support":
 
 if st.button("Tourniquet Tying"):
     show_page2()
-btn_to_page2.pack()
