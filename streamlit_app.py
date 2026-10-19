@@ -28,6 +28,10 @@ if page == "Chat":
     st.info("Morning medication reminder")
     st.success("Appointment confirmed")
 
+curl https://ollama.com/api/chat \
+  -H "Authorization: Bearer $OLLAMA_API_KEY" \
+  -d '{"model": "gpt-oss:120b", "messages": [{"role": "user", "content": "Why is the sky blue?"}], "stream": false}'
+
 elif page == "History":
     st.title("Add a Care Task")
 
@@ -48,6 +52,6 @@ elif page == "History":
             st.warning("Please enter a task name.")
 
 elif page == "Basic Life Support":
-    st.title("About Care Companion")
+    st.title("Basic Life Support Trainings")
     st.info("Tourniquet tying")
     st.info("Narcan Training")
