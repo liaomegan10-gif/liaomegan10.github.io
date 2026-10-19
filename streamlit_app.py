@@ -1,14 +1,14 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My First Webpage</title>
-</head>
-<body>
+import streamlit as st
 
-    <h1>Hello, World!</h1>
-    <p>This is my first website setup.</p>
+st.set_page_config(page_title="My App", page_icon="🚀")
 
-</body>
-</html>
+st.title("My First App")
+st.write("Welcome! My Streamlit app is running.")
+
+name = st.text_input("What is your name?")
+
+if st.button("Say hello"):
+    if name.strip():
+        st.success(f"Hello, {name}!")
+    else:
+        st.warning("Please enter your name first.")
