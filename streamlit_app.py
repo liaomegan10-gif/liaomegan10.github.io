@@ -49,4 +49,5 @@ elif page == "History":
 
 elif page == "Basic Life Support":
     st.title("About Care Companion")
-    st.write("A simple tool to help organize care tasks.")
+    st.info("Tourniquet tying")
+    st.info("Narcan Training")
