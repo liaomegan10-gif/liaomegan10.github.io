@@ -5,7 +5,7 @@ st.set_page_config(
     page_icon="💙",
     layout="wide",
 )
-
+ 
 # Sidebar navigation
 st.sidebar.title("💙 Care Companion")
 page = st.sidebar.radio(
