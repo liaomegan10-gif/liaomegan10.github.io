@@ -125,15 +125,19 @@ elif page == "History":
 elif page == "Basic Life Support":
     st.title("Basic Life Support Trainings")
 
+   subpage = st.list(
+    "Mini Lessons",
+    ["Tourniquet Tying", "Narcan Training", "More"],
+)
     if st.button("Tourniquet tying"):
-        page = "Tourniquet Tyuing"
+        subpage = "Tourniquet Tying"
     
     if st.button("Narcan Training"):
-        page = "Narcan Training"
+        subpage = "Narcan Training"
 
-elif page == "Tourniquet Tying":
+elif subpage == "Tourniquet Tying":
     st.title("Tourniquet Tying Step By Step")
 
-elif page == "Narcan Training":
+elif subpage == "Narcan Training":
     st.title("How to effectively use Narcan")
 
