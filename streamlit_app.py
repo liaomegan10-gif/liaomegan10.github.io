@@ -5,8 +5,7 @@ st.set_page_config(
     page_icon="🫀",
     layout="wide",
 )
-st.html("<p style='font-size:24px'>Hi!</p>")
-# st.markdown('<style>[data-testid="stSidebar"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
+st.markdown('<style>[data-testid="stSidebar"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 # Sidebar navigation
 st.sidebar.title("Healthcare Translator")
 page = st.sidebar.radio(
@@ -128,7 +127,7 @@ elif page == "Basic Life Support":
     
 st.markdown('<style>[data-testid="BLSpages"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 
-subpage = st.json({"foo":"bar","fu":"ba"})
+subpage = st.popover("Button label")
 
 if st.button("Tourniquet tying"):
     subpage = "Tourniquet Tying"
