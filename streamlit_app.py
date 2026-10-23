@@ -35,7 +35,7 @@ if page == "Chat":
     st.title("🤖 My AI Chatbot")
     st.caption("Powered by Ollama")
     
-    # Load your API key from Streamlit Secrets
+    # Load API key from Streamlit Secrets
     try:
         api_key = st.secrets["OLLAMA_API_KEY"]
     except (KeyError, FileNotFoundError):
@@ -137,8 +137,10 @@ if st.button("Narcan Training"):
     subpage = "Narcan Training"
 
 elif subpage == "Tourniquet Tying":
+    st.query_params.clear()
     st.title("Tourniquet Tying Step By Step")
 
 elif subpage == "Narcan Training":
+    st.query_params.clear()
     st.title("How to effectively use Narcan")
 
