@@ -8,7 +8,7 @@ st.set_page_config(
 st.markdown('<style>[data-testid="stSidebar"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 # Sidebar navigation
 st.sidebar.title("Healthcare Translator")
-page = st.sidebar.radio(
+page = st.sidebar.button(
     "Navigation",
     ["Chat", "History", "Basic Life Support"],
 )
