@@ -131,11 +131,11 @@ subpage = st.ul(
     "Mini Lessons",
     ["Tourniquet Tying", "Narcan Training", "More"],
 )
-    if st.button("Tourniquet tying"):
-        subpage = "Tourniquet Tying"
+if st.button("Tourniquet tying"):
+    subpage = "Tourniquet Tying"
     
-    if st.button("Narcan Training"):
-        subpage = "Narcan Training"
+if st.button("Narcan Training"):
+    subpage = "Narcan Training"
 
 elif subpage == "Tourniquet Tying":
     st.title("Tourniquet Tying Step By Step")
