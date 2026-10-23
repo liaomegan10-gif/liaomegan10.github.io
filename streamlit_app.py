@@ -127,7 +127,7 @@ elif page == "Basic Life Support":
     
 st.markdown('<style>[data-testid="BLSpages"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 
-    subpage = st.ul(
+subpage = st.ul(
     "Mini Lessons",
     ["Tourniquet Tying", "Narcan Training", "More"],
 )
