@@ -127,10 +127,8 @@ elif page == "Basic Life Support":
     
 st.markdown('<style>[data-testid="BLSpages"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 
-subpage = st.json(
-    "Mini Lessons",
-    ["Tourniquet Tying", "Narcan Training", "More"],
-)
+subpage = st.json({"foo":"bar","fu":"ba"})
+
 if st.button("Tourniquet tying"):
     subpage = "Tourniquet Tying"
     
