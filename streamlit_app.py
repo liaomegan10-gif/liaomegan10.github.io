@@ -124,8 +124,8 @@ elif page == "History":
 
 elif page == "Basic Life Support":
     st.title("Basic Life Support Trainings")
-
-   subpage = st.list(
+    
+    subpage = st.list(
     "Mini Lessons",
     ["Tourniquet Tying", "Narcan Training", "More"],
 )
