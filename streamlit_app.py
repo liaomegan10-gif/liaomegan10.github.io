@@ -127,7 +127,8 @@ elif page == "Basic Life Support":
     
 st.markdown('<style>[data-testid="BLSpages"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 
-subpage = expand.write("Inside the expander.")
+expand = st.expander("My label", icon=":material/info:")
+expand.write("Inside the expander.")
 
 if st.button("Tourniquet tying"):
     subpage = "Tourniquet Tying"
