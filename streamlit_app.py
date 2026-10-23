@@ -5,7 +5,8 @@ st.set_page_config(
     page_icon="🫀",
     layout="wide",
 )
-st.markdown('<style>[data-testid="stSidebar"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
+st.html("<p style='font-size:24px'>Hi!</p>")
+# st.markdown('<style>[data-testid="stSidebar"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 # Sidebar navigation
 st.sidebar.title("Healthcare Translator")
 page = st.sidebar.radio(
