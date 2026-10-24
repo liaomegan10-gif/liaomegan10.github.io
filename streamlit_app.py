@@ -94,7 +94,7 @@ if page == "Chat":
 
 
 elif page == "Care Dashboard":
-     st.title("Your Care Dashboard")
+    st.title("Your Care Dashboard")
     st.write("Welcome back! Here's your overview.")
 
     # Three dashboard columns
