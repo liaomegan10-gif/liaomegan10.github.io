@@ -62,7 +62,7 @@ if page == "Chat":
     # Receive user input
     if prompt := st.chat_input("Ask me anything..."):
         st.session_state.messages.append(
-            {"role": "user", "content": prompt + "When you answer this question, act like an elementary school teacher who is very knowledgeable about this subject and knows how to break it down into sections and easy-to-understand langauge for the user. Structure it like a lesson and try not to use too many complicated words without defining them first. Include options for insurance plans (also in common, easy-to-understand language) and a disclaimer at the beginning of the message that information should be double checked with a physician and to not completely trust Artificial Intelligence."}
+            {"role": "user", "content": prompt + "When you answer this question, act like an elementary school teacher who is very knowledgeable about this subject and knows how to break it down into sections and easy-to-understand langauge for the user. Structure it like a lesson and try not to use too many complicated words without defining them first. Include options for insurance plans, also in common, easy-to-understand language, and a disclaimer at the beginning of the message that information should be double checked with a physician and to not completely trust Artificial Intelligence."}
         )
     
         with st.chat_message("user"):
