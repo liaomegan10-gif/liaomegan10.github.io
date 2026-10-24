@@ -30,9 +30,7 @@ if page == "Chat":
     
     import requests
     
-    st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
-    
-    st.title("🤖 My AI Chatbot")
+    st.title("🤖 My Healthcare Translator")
     st.caption("Powered by Ollama")
     
     # Load API key from Streamlit Secrets
@@ -72,7 +70,7 @@ if page == "Chat":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    message = [{"role": "system", "content": instructions},
+                    message = [{"role": "user", "content": prompt + instructions},
                     *st.session_state.messages,
                 ]
                         
