@@ -129,22 +129,12 @@ elif page == "History":
 
 elif page == "Basic Life Support":
     st.title("Basic Life Support Trainings")
-    
-st.markdown('<style>[data-testid="BLSpages"] label p {font-size: 24px !important;}</style>', unsafe_allow_html=True)
 
-expand = st.expander("My label", icon=":material/info:")
-expand.write("Inside the expander.")
+    if st.button("Tourniquet tying"):
+        show_page2()
 
-if st.button("Tourniquet tying"):
-    subpage = "Tourniquet Tying"
-    
-if st.button("Narcan Training"):
-    subpage = "Narcan Training"
+    if st.button("Narcan Training"):
+        show_page3()
 
 elif page == "Tourniquet Tying":
     st.title("Tourniquet Tying Step By Step")
-
-elif subpage == "Narcan Training":
-    st.query_params.clear()
-    st.title("How to effectively use Narcan")
-
