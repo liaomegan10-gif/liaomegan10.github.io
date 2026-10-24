@@ -10,23 +10,10 @@ st.markdown('<style>[data-testid="stSidebar"] label p {font-size: 24px !importan
 st.sidebar.title("Healthcare Translator")
 page = st.sidebar.radio(
     "Navigation",
-    ["Chat", "History", "Basic Life Support"],
+    ["Chat", "Care Dashboard", "Basic Life Support"],
 )
 
 if page == "Chat":
-    st.title("Your Care Dashboard")
-    st.write("Welcome back! Here's your overview.")
-
-    # Three dashboard columns
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Tasks Today", 5)
-    col2.metric("Completed", 3)
-    col3.metric("Remaining", 2)
-
-    st.subheader("Today's Priorities")
-    st.info("Morning medication reminder")
-    st.success("Appointment confirmed")
     
     import requests
     
@@ -106,7 +93,21 @@ if page == "Chat":
                     st.error("Ollama returned an unexpected response.")
 
 
-elif page == "History":
+elif page == "Care Dashboard":
+     st.title("Your Care Dashboard")
+    st.write("Welcome back! Here's your overview.")
+
+    # Three dashboard columns
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Tasks Today", 5)
+    col2.metric("Completed", 3)
+    col3.metric("Remaining", 2)
+
+    st.subheader("Today's Priorities")
+    st.info("Morning medication reminder")
+    st.success("Appointment confirmed")
+
     st.title("Add a Care Task")
 
     with st.form("task_form"):
