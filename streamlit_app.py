@@ -138,6 +138,7 @@ elif page == "Basic Life Support":
 
 elif page == "page2":
     st.title("Tourniquet Tying Step By Step")
+    st.write("Welcome back! Here's your overview.")
 
 elif page == "page3":
     st.title("How to Use Narcan")
