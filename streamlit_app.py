@@ -131,13 +131,10 @@ elif page == "Basic Life Support":
     st.title("Basic Life Support Trainings")
 
     if st.button("Tourniquet tying"):
-        page = page2
+        page = "page2"
 
     if st.button("Narcan Training"):
-        page = page3
-
-elif page == "Tourniquet Tying":
-    st.title("Tourniquet Tying Step By Step")
+        page = "page3"
 
 elif page == "page2":
     st.title("Tourniquet Tying Step By Step")
