@@ -62,7 +62,7 @@ if page == "Chat":
     # Receive user input
     if prompt := st.chat_input("Ask me anything..."):
         st.session_state.messages.append(
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt + "include options for insurance plans and a disclaimer at the beginning of the message that information should be double checked with a physician and to not completely trust Artificial Intelligence."}
         )
     
         with st.chat_message("user"):
