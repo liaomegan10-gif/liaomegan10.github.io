@@ -63,7 +63,7 @@ if page == "Chat":
     instructions = "When you answer this question, act like an elementary school teacher who is very knowledgeable about this subject and knows how to break it down into sections and easy-to-understand langauge for the user. Do not include roleplay likse saying elcome to class or anything like that, I simply want you to break down complex topics into easier to understand chunks of language and information. Structure it like a lesson and try not to use too many complicated words without defining them first. Include options for insurance plans, also in common, easy-to-understand language, and a disclaimer at the beginning of the message that information should be double checked with a physician and to not completely trust Artificial Intelligence."  
     if prompt := st.chat_input("Ask me anything..."):
         st.session_state.messages.append(
-            {"role": "user", "content": prompt + instructions}
+            {"role": "user", "content": prompt}
         )
     
         with st.chat_message("user"):
@@ -72,7 +72,7 @@ if page == "Chat":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    message = [{"role": "system", "content": instructions},
+                    message = [{"role": "system", "content": prompt + instructions},
                     *st.session_state.messages,
                 ]
                         
