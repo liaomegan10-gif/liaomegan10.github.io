@@ -138,3 +138,7 @@ elif page == "Basic Life Support":
 
 elif page == "Tourniquet Tying":
     st.title("Tourniquet Tying Step By Step")
+
+elif page == "page2":
+    st.title("Tourniquet Tying Step By Step")
+
