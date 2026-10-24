@@ -141,8 +141,7 @@ if st.button("Tourniquet tying"):
 if st.button("Narcan Training"):
     subpage = "Narcan Training"
 
-elif subpage == "Tourniquet Tying":
-    st.query_params.clear()
+elif page == "Tourniquet Tying":
     st.title("Tourniquet Tying Step By Step")
 
 elif subpage == "Narcan Training":
