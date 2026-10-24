@@ -72,7 +72,7 @@ if page == "Chat":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    message = [{"role": "system", "content": prompt + instructions},
+                    message = [{"role": "system", "content": instructions},
                     *st.session_state.messages,
                 ]
                         
