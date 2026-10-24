@@ -83,7 +83,7 @@ if page == "Chat":
                         json={
                             # Use a model available to your Ollama account.
                             "model": "gemma4:31b",
-                            "messages": st.session_state.messages,
+                            "messages": messages_to_send,
                             "stream": False,
                         },
                         timeout=120,
