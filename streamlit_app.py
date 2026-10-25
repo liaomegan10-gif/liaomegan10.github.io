@@ -11,12 +11,10 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
-# ----------------------------------------------------------------------------
-# Config
-# ----------------------------------------------------------------------------
+
 OLLAMA_URL = "https://ollama.com/api/chat"
-CHAT_MODEL = "gemma4:31b"    # Use a model available to your Ollama account.
-VISION_MODEL = "gemma4:31b"  # Must be an image-capable (multimodal) model.
+CHAT_MODEL = "gemma4:31b"   
+VISION_MODEL = "gemma4:31b" 
 
 TOURNIQUET_VIDEO = "https://www.youtube.com/watch?v=k98ilfQmUWw"
 NARCAN_VIDEO = "https://www.youtube.com/watch?v=xa7X00_QKWk"
@@ -31,10 +29,7 @@ st.set_page_config(
     page_icon="🫀",
     layout="wide",
 )
-
-# ============================================================================
-# COLOR SCHEME + LOGO SIZE  (change these values to restyle the whole app)
-# ============================================================================
+# COLOR SCHEME + LOGO SIZE
 LOGO_WIDTH_PX = 130          # <-- LOGO SIZE: make this number bigger or smaller
 
 NAVY = "#1B2A4A"             # buttons, text boxes, title, body text
@@ -308,10 +303,7 @@ GLOBAL_CSS = (
 )
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
-
-# ----------------------------------------------------------------------------
-# Helpers
-# ----------------------------------------------------------------------------
+# Ollama setup and stuff
 def get_api_key():
     """Load the Ollama API key from Streamlit Secrets (stops the page if missing)."""
     try:
@@ -349,10 +341,7 @@ NETWORK_ERROR = (
 BAD_RESPONSE_ERROR = "Ollama returned an unexpected response."
 
 
-# ----------------------------------------------------------------------------
-# Upload helpers (files are read in memory only: nothing is written to disk
-# or to a database, and images/files are not kept in the chat history)
-# ----------------------------------------------------------------------------
+# Upload helpers (files are read in memory only: nothing is written to disk or to a database, and images/files are not kept in the chat history)
 ATTACH_TYPES = ["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv"]
 IMAGE_EXTS = ("png", "jpg", "jpeg", "webp")
 MAX_FILE_CHARS = 12000
@@ -425,19 +414,14 @@ def show_images(files):
         if f.name.lower().rsplit(".", 1)[-1] in IMAGE_EXTS:
             st.image(f, width=300)
 
-
-# ----------------------------------------------------------------------------
 # Basic Life Support topics
-# To use a different video, replace the "video" URL for that topic.
-# A topic with "video": None shows a YouTube search link instead.
-# ----------------------------------------------------------------------------
 BLS_TOPICS = {
     "cpr": {
         "label": "CPR Training",
         "title": "CPR Training",
         "video": None,
         "search": "how to do hands-only CPR American Heart Association",
-        "body": "",  # CPR has its own interactive page (render_cpr)
+        "body": ""
     },
     "tourniquet": {
         "label": "Tourniquet tying",
@@ -625,9 +609,7 @@ move them to keep them breathing.
 }
 
 
-# ----------------------------------------------------------------------------
-# Language help (no dropdown: users just ask, or write in their language)
-# ----------------------------------------------------------------------------
+# Language help
 LANG_NOTE = "Answers can be translated into any language. Just ask!"
 
 
@@ -659,9 +641,7 @@ def refusal_reply(user_text, key):
     )
 
 
-# ----------------------------------------------------------------------------
-# Local care helpers
-# ----------------------------------------------------------------------------
+# Local care zip code finder
 CARE_CATEGORIES = {
     "Low-cost community health centers": "community health center sliding fee near {zip}",
     "Free clinics": "free clinic near {zip}",
@@ -716,9 +696,7 @@ if "cal_year" not in st.session_state:
     st.session_state.cal_month = _today.month
 
 
-# ----------------------------------------------------------------------------
 # Calendar helpers (appointments and medicine reminders)
-# ----------------------------------------------------------------------------
 REPEAT_OPTIONS = ["Does not repeat", "Daily", "Weekly", "Monthly"]
 DOSE_UNITS = [
     "mg", "mcg", "g", "mL", "tablet(s)", "capsule(s)", "drop(s)",
@@ -836,17 +814,15 @@ def render_calendar(year, month):
     )
     st.markdown("".join(rows), unsafe_allow_html=True)
 
-
-# ----------------------------------------------------------------------------
 # CPR training (shown as a Basic Life Support subpage)
-# ----------------------------------------------------------------------------
+
 def render_cpr():
     st.info(
         "Practice on a firm pillow, cushion, or training manikin. "
         "Never practice compressions on a real person who doesn't need CPR."
     )
 
-    # ---- Step 1: instructions ----
+    #Step 1: instructions
     st.header("Step 1: Learn the basics (adult, hands-only CPR)")
     st.markdown(
         """
@@ -868,7 +844,7 @@ def render_cpr():
         """
     )
 
-    # ---- Step 2: rhythm ----
+    #Step 2: rhythm
     st.header("Step 2: Practice the rhythm")
     st.caption("Press start and push to the beat (110 beats per minute).")
     components.html(
@@ -910,7 +886,7 @@ def render_cpr():
         height=70,
     )
 
-    # ---- Step 3: camera placement check ----
+    #Step 3: camera placement check
     st.header("Step 3: Check your placement with the camera")
     ready = st.checkbox("I've read the instructions above and I'm ready to practice")
 
@@ -982,9 +958,7 @@ def render_cpr():
             )
 
 
-# ----------------------------------------------------------------------------
 # Logo (embedded, so no separate image file is needed)
-# ----------------------------------------------------------------------------
 LOGO_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAPAAAAEQCAMAAAC5uAmWAAAAwFBMVEXdWFuwUlV9PDy4WWCvOmyiISFgVVXfNjb/AP/oFnCs"
     "rKx/En/xpKQA//+yZy7xeA3//wB/fwamWKbiXqAA/wCqqlUAAP8Af3+5WGD/f/8AAH8AAAC3WV24WF2vV1f/AAC4WVy4WV24"
@@ -1090,9 +1064,7 @@ LOGO_B64 = (
 )
 
 
-# ----------------------------------------------------------------------------
 # Sidebar navigation
-# ----------------------------------------------------------------------------
 st.sidebar.markdown(
     f'<div class="brand"><img src="data:image/png;base64,{LOGO_B64}" alt="Logo">'
     '<div class="brand-title">Healthcare Translator</div></div>',
@@ -1112,9 +1084,7 @@ page = st.sidebar.radio(
 )
 st.sidebar.caption(LANG_NOTE)
 
-# ----------------------------------------------------------------------------
 # Chat (general health translator)
-# ----------------------------------------------------------------------------
 if page == "My Healthcare Translator":
     st.title("My Healthcare Translator")
     st.caption(
@@ -1189,9 +1159,8 @@ if page == "My Healthcare Translator":
                 except (KeyError, ValueError):
                     st.error(BAD_RESPONSE_ERROR)
 
-# ----------------------------------------------------------------------------
 # Insurance assistant (separate bot, insurance questions only)
-# ----------------------------------------------------------------------------
+
 elif page == "Insurance Assistant":
     st.title("Insurance Plan Assistant")
     st.caption("Powered by Ollama · Insurance questions only")
@@ -1551,9 +1520,8 @@ elif page == "Appointments & Reminders":
                 args=(ev["id"],),
             )
 
-# ----------------------------------------------------------------------------
 # Basic Life Support
-# ----------------------------------------------------------------------------
+
 elif page == "Basic Life Support":
     def open_view(name):
         st.session_state.bls_view = name
@@ -1598,9 +1566,8 @@ elif page == "Basic Life Support":
                 "first-aid course. In an emergency, call 911 first."
             )
 
-# ----------------------------------------------------------------------------
 # Find Local Care (ZIP code search for clinics, urgent care, emergency services)
-# ----------------------------------------------------------------------------
+
 elif page == "Find Local Care":
     st.title("Find Local Care")
     st.info(
