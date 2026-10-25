@@ -1,4 +1,7 @@
 import base64
+import calendar
+import datetime as dt
+import html
 import io
 import re
 import uuid
@@ -69,6 +72,17 @@ html, body, .stApp,
     background-color: __PAGE_BG__ !important;
 }
 [data-testid="stSidebar"] label p { font-size: 24px !important; }
+
+/* Sidebar radio: the dot lines up with the FIRST line of a wrapped label */
+[data-testid="stSidebar"] [data-testid="stRadio"] label {
+    align-items: flex-start !important;
+}
+[data-testid="stSidebar"] [data-testid="stRadio"] label p {
+    line-height: 1.3 !important;
+}
+[data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-of-type {
+    margin-top: 0.45rem;
+}
 .stApp h1, .stApp h2, .stApp h3, .stApp h4,
 .stApp p, .stApp li, .stApp label, .stApp span,
 [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
@@ -99,12 +113,7 @@ html, body, .stApp,
     font-weight: 800;
     font-size: 2.4rem;
     line-height: 1.05;
-    letter-spacing: 0.5px;
-    color: __ACCENT__;
-    background: linear-gradient(90deg, __ACCENT__, __BORDER__);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: __BORDER__;
 }
 
 /* ---------- Buttons (always pink) ---------- */
@@ -228,6 +237,45 @@ button[kind="secondary"]:disabled,
 [data-baseweb="menu"] { background-color: #FFF0F5 !important; }
 [data-baseweb="menu"] li, [data-baseweb="menu"] li * { color: __TEXT__ !important; }
 
+/* ---------- Notes (st.info) are always the same blue ---------- */
+[data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]),
+[data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) [data-testid="stAlertContainer"] {
+    background-color: #DCEBFA !important;
+    border-radius: 0.5rem;
+}
+[data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) :is(p, span, li, strong, a) {
+    color: #0B3D6B !important;
+}
+
+/* ---------- Calendar ---------- */
+.cal-wrap { overflow-x: auto; }
+table.cal {
+    width: 100%; min-width: 720px; table-layout: fixed;
+    border-collapse: separate; border-spacing: 4px;
+}
+table.cal th {
+    background: __ACCENT__; color: #ffffff; padding: 0.4rem;
+    border-radius: 0.4rem; font-weight: 700; text-align: center;
+}
+table.cal td {
+    background: rgba(255, 255, 255, 0.7); color: __TEXT__;
+    vertical-align: top; height: 96px; padding: 0.35rem;
+    border-radius: 0.5rem; border: 1px solid __SOFT__;
+}
+table.cal td.other { background: rgba(255, 255, 255, 0.3); border-color: transparent; }
+table.cal td.today { border: 2px solid __ACCENT__; }
+.cal-num { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.2rem; }
+.chip {
+    font-size: 0.72rem; line-height: 1.25; padding: 2px 6px;
+    border-radius: 4px; margin-bottom: 2px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+}
+.chip-appt { background: __ACCENT__; color: #ffffff !important; }
+.chip-med { background: __SOFT__; color: __SOFT_TEXT__ !important; }
+.chip-more { font-size: 0.72rem; color: __TEXT__; }
+.legend { display: flex; gap: 0.5rem; margin: 0.4rem 0 1rem 0; }
+.legend .chip { display: inline-block; font-size: 0.8rem; padding: 3px 10px; }
+
 /* ---------- Soft pink info box ---------- */
 .pink-box {
     background-color: __SOFT__;
@@ -302,7 +350,7 @@ MAX_FILE_CHARS = 12000
 
 def upload_note():
     st.info(
-        "📎 **You can upload files and images in the text box below.** "
+        "**You can upload files and images in the text box below.** "
         "Screenshot what you see online, or take a photo of a physical form, "
         "and upload it for direct translation and help. Uploads are **not "
         "saved to a database**: they're only used to answer your question and "
@@ -376,7 +424,7 @@ def show_images(files):
 BLS_TOPICS = {
     "cpr": {
         "label": "CPR Training",
-        "title": "🫀 CPR Training",
+        "title": "CPR Training",
         "video": None,
         "search": "how to do hands-only CPR American Heart Association",
         "body": "",  # CPR has its own interactive page (render_cpr)
@@ -570,7 +618,7 @@ move them to keep them breathing.
 # ----------------------------------------------------------------------------
 # Language help (no dropdown: users just ask, or write in their language)
 # ----------------------------------------------------------------------------
-LANG_NOTE = "🌐 Answers can be translated into any language. Just ask!"
+LANG_NOTE = "Answers can be translated into any language. Just ask!"
 
 
 def lang_instruction():
@@ -648,13 +696,142 @@ if "bls_view" not in st.session_state:
     st.session_state.bls_view = None
 if "cam_requested" not in st.session_state:
     st.session_state.cam_requested = False
+if "events" not in st.session_state:
+    st.session_state.events = []
+if "form_nonce" not in st.session_state:
+    st.session_state.form_nonce = 0
+if "cal_year" not in st.session_state:
+    _today = dt.date.today()
+    st.session_state.cal_year = _today.year
+    st.session_state.cal_month = _today.month
+
+
+# ----------------------------------------------------------------------------
+# Calendar helpers (appointments and medicine reminders)
+# ----------------------------------------------------------------------------
+REPEAT_OPTIONS = ["Does not repeat", "Daily", "Weekly", "Monthly"]
+DOSE_UNITS = [
+    "mg", "mcg", "g", "mL", "tablet(s)", "capsule(s)", "drop(s)",
+    "puff(s)", "unit(s)", "teaspoon(s)",
+]
+WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+
+def fmt_time(t):
+    return t.strftime("%I:%M %p").lstrip("0")
+
+
+def fmt_date(d):
+    return d.strftime("%b %d, %Y").replace(" 0", " ")
+
+
+def occurs_on(ev, day):
+    """True if this calendar item (including repeats) happens on `day`."""
+    start = ev["date"]
+    if day < start:
+        return False
+    if ev["until"] and day > ev["until"]:
+        return False
+    if ev["repeat"] == "Daily":
+        return True
+    if ev["repeat"] == "Weekly":
+        return (day - start).days % 7 == 0
+    if ev["repeat"] == "Monthly":
+        return day.day == start.day
+    return day == start
+
+
+def events_on(day):
+    items = [e for e in st.session_state.events if occurs_on(e, day)]
+    return sorted(items, key=lambda e: e["time"])
+
+
+def short_label(ev):
+    if ev["kind"] == "Appointment":
+        return ev["title"]
+    return f"{ev['title']} {ev['dose']}"
+
+
+def summary_line(ev):
+    if ev["kind"] == "Appointment":
+        who = f" with {ev['doctor']}" if ev["doctor"] else ""
+        return f"Appointment: {ev['title']}{who}"
+    return f"Take {ev['title']} ({ev['dose']})"
+
+
+def repeat_text(ev):
+    if ev["repeat"] == "Does not repeat":
+        return "One time"
+    text = f"Repeats {ev['repeat'].lower()}"
+    if ev["until"]:
+        text += f" until {fmt_date(ev['until'])}"
+    return text
+
+
+def shift_month(delta):
+    m = st.session_state.cal_month + delta
+    y = st.session_state.cal_year
+    if m < 1:
+        m, y = 12, y - 1
+    elif m > 12:
+        m, y = 1, y + 1
+    st.session_state.cal_month, st.session_state.cal_year = m, y
+
+
+def go_today():
+    today = dt.date.today()
+    st.session_state.cal_year, st.session_state.cal_month = today.year, today.month
+
+
+def delete_event(event_id):
+    st.session_state.events = [
+        e for e in st.session_state.events if e["id"] != event_id
+    ]
+
+
+def render_calendar(year, month):
+    """Month grid with each day's appointments and medicine reminders."""
+    today = dt.date.today()
+    cal = calendar.Calendar(firstweekday=6)
+    rows = [
+        '<div class="cal-wrap"><table class="cal"><tr>'
+        + "".join(f"<th>{d}</th>" for d in WEEKDAYS)
+        + "</tr>"
+    ]
+    for week in cal.monthdatescalendar(year, month):
+        rows.append("<tr>")
+        for day in week:
+            if day.month != month:
+                rows.append('<td class="other"></td>')
+                continue
+            evs = events_on(day)
+            chips = ""
+            for ev in evs[:3]:
+                css = "chip-appt" if ev["kind"] == "Appointment" else "chip-med"
+                chips += (
+                    f'<div class="chip {css}">{fmt_time(ev["time"])} '
+                    f"{html.escape(short_label(ev))}</div>"
+                )
+            if len(evs) > 3:
+                chips += f'<div class="chip-more">+{len(evs) - 3} more</div>'
+            cls = "today" if day == today else ""
+            rows.append(
+                f'<td class="{cls}"><div class="cal-num">{day.day}</div>{chips}</td>'
+            )
+        rows.append("</tr>")
+    rows.append("</table></div>")
+    rows.append(
+        '<div class="legend"><div class="chip chip-appt">Appointment</div>'
+        '<div class="chip chip-med">Medicine reminder</div></div>'
+    )
+    st.markdown("".join(rows), unsafe_allow_html=True)
 
 
 # ----------------------------------------------------------------------------
 # CPR training (shown as a Basic Life Support subpage)
 # ----------------------------------------------------------------------------
 def render_cpr():
-    st.write(
+    st.info(
         "Practice on a firm pillow, cushion, or training manikin. "
         "Never practice compressions on a real person who doesn't need CPR."
     )
@@ -915,6 +1092,7 @@ page = st.sidebar.radio(
     "Navigation",
     [
         "Care Dashboard",
+        "Appointments & Reminders",
         "My Healthcare Translator",
         "Insurance Assistant",
         "Find Local Care",
@@ -928,7 +1106,7 @@ st.sidebar.caption(LANG_NOTE)
 # Chat (general health translator)
 # ----------------------------------------------------------------------------
 if page == "My Healthcare Translator":
-    st.title("🤖 My Healthcare Translator")
+    st.title("My Healthcare Translator")
     st.caption(
         "Powered by Ollama · Turn doctor or insurance jargon into plain language"
     )
@@ -1005,7 +1183,7 @@ if page == "My Healthcare Translator":
 # Insurance assistant (separate bot, insurance questions only)
 # ----------------------------------------------------------------------------
 elif page == "Insurance Assistant":
-    st.title("🛡️ Insurance Plan Assistant")
+    st.title("Insurance Plan Assistant")
     st.caption("Powered by Ollama · Insurance questions only")
     upload_note()
 
@@ -1196,6 +1374,174 @@ elif page == "Care Dashboard":
         st.button("Clear completed tasks", on_click=clear_completed)
 
 # ----------------------------------------------------------------------------
+# Appointments & Reminders
+# ----------------------------------------------------------------------------
+elif page == "Appointments & Reminders":
+    st.title("Appointments & Reminders")
+    st.info(
+        "Add appointments and medicine reminders to your calendar. Items are "
+        "kept only while this browser session is open, and this app can't send "
+        "phone alerts, so check back here or copy them into your phone's "
+        "calendar."
+    )
+
+    today = dt.date.today()
+
+    # ---- Today ----
+    st.subheader("Today")
+    todays = events_on(today)
+    if not todays:
+        st.write("Nothing scheduled today.")
+    for ev in todays:
+        st.markdown(f"**{fmt_time(ev['time'])}** · {summary_line(ev)}")
+
+    # ---- Calendar ----
+    n1, n2, n3, _spacer = st.columns([1, 1, 1, 3])
+    n1.button("← Previous", on_click=shift_month, args=(-1,), key="cal_prev",
+              use_container_width=True)
+    n2.button("Next →", on_click=shift_month, args=(1,), key="cal_next",
+              use_container_width=True)
+    n3.button("Today", on_click=go_today, key="cal_today", use_container_width=True)
+
+    cal_year, cal_month = st.session_state.cal_year, st.session_state.cal_month
+    st.subheader(f"{calendar.month_name[cal_month]} {cal_year}")
+    render_calendar(cal_year, cal_month)
+
+    # ---- Add an item ----
+    st.header("Add to your calendar")
+    nonce = st.session_state.form_nonce
+    kind = st.selectbox(
+        "What would you like to add?",
+        ["Appointment", "Medicine reminder"],
+        key="add_kind",
+    )
+
+    def key(name):
+        return f"{name}_{kind[:3]}_{nonce}"
+
+    doctor = specialty = phone = email = location = dose = ""
+    if kind == "Appointment":
+        title = st.text_input(
+            "Appointment title or reason",
+            key=key("title"),
+            placeholder="e.g. Annual checkup",
+        )
+        c1, c2 = st.columns(2)
+        start = c1.date_input("Date", key=key("date"))
+        when = c2.time_input("Time", value=dt.time(9, 0), key=key("time"))
+        location = st.text_input("Location (optional)", key=key("loc"))
+
+        st.subheader("Physician contact")
+        p1, p2 = st.columns(2)
+        doctor = p1.text_input("Physician name", key=key("doctor"))
+        specialty = p2.text_input("Specialty or clinic", key=key("spec"))
+        p3, p4 = st.columns(2)
+        phone = p3.text_input("Phone", key=key("phone"))
+        email = p4.text_input("Email", key=key("email"))
+        notes = st.text_area("Notes (optional)", key=key("notes"))
+    else:
+        title = st.text_input(
+            "Medicine name", key=key("title"), placeholder="e.g. Metformin"
+        )
+        d1, d2 = st.columns(2)
+        amount = d1.number_input(
+            "Dosage amount", min_value=0.0, value=1.0, step=0.5, key=key("amount")
+        )
+        unit = d2.selectbox("Unit", DOSE_UNITS, key=key("unit"))
+        dose = f"{amount:g} {unit}"
+        c1, c2 = st.columns(2)
+        start = c1.date_input("Start date", key=key("date"))
+        when = c2.time_input("Time", value=dt.time(8, 0), key=key("time"))
+        notes = st.text_area(
+            "Instructions (optional)",
+            key=key("notes"),
+            placeholder="e.g. Take with food",
+        )
+
+    st.subheader("Repeat")
+    repeat = st.selectbox(
+        "How often?",
+        REPEAT_OPTIONS,
+        index=1 if kind == "Medicine reminder" else 0,
+        key=key("repeat"),
+    )
+    until = None
+    if repeat != "Does not repeat":
+        if st.checkbox("Set an end date", key=key("hasend")):
+            until = st.date_input(
+                "Repeat until",
+                value=start + dt.timedelta(days=30),
+                key=key("until"),
+            )
+
+    if st.button("Add to calendar", key=key("add")):
+        if not title.strip():
+            st.warning(
+                "Please enter a medicine name."
+                if kind == "Medicine reminder"
+                else "Please enter an appointment title."
+            )
+        elif until and until < start:
+            st.warning("The end date can't be before the start date.")
+        else:
+            st.session_state.events.append(
+                {
+                    "id": uuid.uuid4().hex,
+                    "kind": kind,
+                    "title": title.strip(),
+                    "date": start,
+                    "time": when,
+                    "repeat": repeat,
+                    "until": until,
+                    "dose": dose,
+                    "doctor": doctor.strip(),
+                    "specialty": specialty.strip(),
+                    "phone": phone.strip(),
+                    "email": email.strip(),
+                    "location": location.strip(),
+                    "notes": notes.strip(),
+                }
+            )
+            st.session_state.form_nonce += 1  # gives the form fresh, empty fields
+            st.toast(f"Added: {title.strip()}")
+            st.rerun()
+
+    # ---- Everything on the calendar ----
+    st.header("Your schedule items")
+    items = sorted(st.session_state.events, key=lambda e: (e["date"], e["time"]))
+    if not items:
+        st.write("Nothing added yet.")
+    for ev in items:
+        with st.container(border=True):
+            st.markdown(f"**{short_label(ev)}** · {ev['kind']}")
+            st.write(
+                f"{fmt_date(ev['date'])} at {fmt_time(ev['time'])} · {repeat_text(ev)}"
+            )
+            if ev["kind"] == "Appointment":
+                if ev["location"]:
+                    st.write(f"Location: {ev['location']}")
+                contact = []
+                if ev["doctor"]:
+                    contact.append(f"**Physician:** {ev['doctor']}")
+                if ev["specialty"]:
+                    contact.append(f"**Specialty/clinic:** {ev['specialty']}")
+                if ev["phone"]:
+                    digits = re.sub(r"[^\d+]", "", ev["phone"])
+                    contact.append(f"**Phone:** [{ev['phone']}](tel:{digits})")
+                if ev["email"]:
+                    contact.append(f"**Email:** [{ev['email']}](mailto:{ev['email']})")
+                if contact:
+                    st.markdown("  \n".join(contact))
+            if ev["notes"]:
+                st.caption(ev["notes"])
+            st.button(
+                "Delete",
+                key=f"del_{ev['id']}",
+                on_click=delete_event,
+                args=(ev["id"],),
+            )
+
+# ----------------------------------------------------------------------------
 # Basic Life Support
 # ----------------------------------------------------------------------------
 elif page == "Basic Life Support":
@@ -1246,9 +1592,9 @@ elif page == "Basic Life Support":
 # Find Local Care (ZIP code search for clinics, urgent care, emergency services)
 # ----------------------------------------------------------------------------
 elif page == "Find Local Care":
-    st.title("📍 Find Local Care")
-    st.error(
-        "🚨 **In an emergency, call 911.** For a mental health crisis, "
+    st.title("Find Local Care")
+    st.info(
+        "**In an emergency, call 911.** For a mental health crisis, "
         "call or text **988**."
     )
     st.write(
@@ -1292,7 +1638,7 @@ elif page == "Find Local Care":
                 "services change, so call ahead."
             )
 
-    with st.expander("💡 Tips for lowering the cost of care"):
+    with st.expander("Tips for lowering the cost of care"):
         st.markdown(
             """
 - **Community health centers** charge based on your income (a "sliding fee"), whether or not you have insurance.
