@@ -32,16 +32,19 @@ st.set_page_config(
     layout="wide",
 )
 
-# Colors
-ACCENT = "#d6336c"        # buttons and text boxes (same as the "Start beat" button)
-ACCENT_HOVER = "#b82a5c"
-ACCENT_BORDER = "#a82255"
-ACCENT_FOCUS = "#7a1a3d"
-SOFT_PINK = "#f3b6cb"
-SOFT_PINK_TEXT = "#5A1F36"
-PAGE_BG = "#FFE4EC"
-SIDEBAR_BG = "#FFD1E0"
-TEXT_DARK = "#3B1F2B"
+# ============================================================================
+# COLOR SCHEME + LOGO SIZE  (change these values to restyle the whole app)
+# ============================================================================
+LOGO_WIDTH_PX = 130          # <-- LOGO SIZE: make this number bigger or smaller
+
+NAVY = "#1B2A4A"             # buttons, text boxes, title, body text
+NAVY_HOVER = "#2C4272"       # buttons when you hover over them
+NAVY_DARK = "#0F1B33"        # borders
+WHITE = "#FFFFFF"            # page background
+LIGHT_BLUE = "#DCEBFA"       # sidebar and blue notes
+LIGHT_BLUE_SOFT = "#EEF5FC"  # chat bubbles, calendar days, upload area
+PINK = "#F3B6CB"             # accents: medicine chips, highlights, divider
+PINK_DEEP = "#E07AA0"        # today's date outline, text-box focus outline
 
 GLOBAL_CSS = """
 <style>
@@ -61,15 +64,15 @@ html, body, .stApp,
 }
 
 /* ---------- Page colors (including the bar behind the chat box) ---------- */
-.stApp, [data-testid="stAppViewContainer"] { background-color: __PAGE_BG__ !important; }
+.stApp, [data-testid="stAppViewContainer"] { background-color: __WHITE__ !important; }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"], [data-testid="stSidebar"] > div {
-    background-color: __SIDEBAR_BG__ !important;
+    background-color: __LIGHT_BLUE__ !important;
 }
 [data-testid="stBottom"],
 [data-testid="stBottom"] > div,
 [data-testid="stBottomBlockContainer"] {
-    background-color: __PAGE_BG__ !important;
+    background-color: __WHITE__ !important;
 }
 [data-testid="stSidebar"] label p { font-size: 24px !important; }
 
@@ -83,10 +86,11 @@ html, body, .stApp,
 [data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-of-type {
     margin-top: 0.45rem;
 }
+
 .stApp h1, .stApp h2, .stApp h3, .stApp h4,
 .stApp p, .stApp li, .stApp label, .stApp span,
 [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
-    color: __TEXT__;
+    color: __NAVY__;
 }
 
 /* Right-to-left languages (e.g. Arabic) align themselves automatically */
@@ -95,16 +99,22 @@ html, body, .stApp,
     text-align: start;
 }
 [data-testid="stChatMessage"] {
-    background-color: rgba(255, 255, 255, 0.55) !important;
+    background-color: __LIGHT_BLUE_SOFT__ !important;
+    border: 1px solid __LIGHT_BLUE__;
     border-radius: 1rem;
 }
 
 /* ---------- Sidebar brand: logo + title ---------- */
-.brand { text-align: center; margin: 0.25rem 0 1.5rem 0; }
+.brand {
+    text-align: center;
+    margin: 0.25rem 0 1.5rem 0;
+    padding-bottom: 1.1rem;
+    border-bottom: 3px solid __PINK__;
+}
 .brand img {
     display: block;
-    width: 170px;
-    max-width: 70%;
+    width: __LOGO_WIDTH__px;   /* LOGO SIZE comes from LOGO_WIDTH_PX at the top */
+    max-width: 100%;
     height: auto;
     margin: 0 auto 0.6rem auto;
 }
@@ -113,10 +123,10 @@ html, body, .stApp,
     font-weight: 800;
     font-size: 2.4rem;
     line-height: 1.05;
-    color: __BORDER__;
+    color: __NAVY__;
 }
 
-/* ---------- Buttons (always pink) ---------- */
+/* ---------- Buttons (navy, white text) ---------- */
 .stButton > button,
 [data-testid="stFormSubmitButton"] > button,
 [data-testid="stDownloadButton"] > button,
@@ -128,8 +138,8 @@ button[kind="secondaryFormSubmit"], button[kind="primaryFormSubmit"],
 [data-testid="stBaseButton-primaryFormSubmit"],
 [data-testid^="stBaseLinkButton"],
 [data-testid="stLinkButton"] a {
-    background-color: __ACCENT__ !important;
-    border: 1px solid __ACCENT__ !important;
+    background-color: __NAVY__ !important;
+    border: 1px solid __NAVY__ !important;
     color: #ffffff !important;
 }
 .stButton > button :is(p, span),
@@ -155,8 +165,8 @@ button[kind="secondaryFormSubmit"]:hover, button[kind="primaryFormSubmit"]:hover
 [data-testid="stBaseButton-primaryFormSubmit"]:hover,
 [data-testid^="stBaseLinkButton"]:hover,
 [data-testid="stLinkButton"] a:hover {
-    background-color: __HOVER__ !important;
-    border-color: __HOVER__ !important;
+    background-color: __NAVY_HOVER__ !important;
+    border-color: __PINK__ !important;
 }
 .stButton > button:disabled,
 button[kind="secondary"]:disabled,
@@ -167,8 +177,8 @@ button[kind="secondary"]:disabled,
 [data-baseweb="input"],
 [data-baseweb="textarea"],
 [data-baseweb="select"] > div {
-    background-color: __ACCENT__ !important;
-    border: 1px solid __BORDER__ !important;
+    background-color: __NAVY__ !important;
+    border: 1px solid __NAVY_DARK__ !important;
     border-radius: 0.5rem !important;
     box-shadow: none !important;
 }
@@ -187,15 +197,15 @@ button[kind="secondary"]:disabled,
 }
 [data-baseweb="input"] input::placeholder,
 [data-baseweb="textarea"] textarea::placeholder {
-    color: rgba(255, 255, 255, 0.75) !important;
-    -webkit-text-fill-color: rgba(255, 255, 255, 0.75) !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.7) !important;
 }
 [data-baseweb="select"] :is(div, span, input) { color: #ffffff !important; }
 [data-baseweb="select"] svg { fill: #ffffff !important; }
 [data-baseweb="input"]:focus-within,
 [data-baseweb="textarea"]:focus-within,
 [data-baseweb="select"] > div:focus-within {
-    border-color: __FOCUS__ !important;
+    border-color: __PINK_DEEP__ !important;
 }
 
 /* ---------- Chat input box (no white/dark bar around it) ---------- */
@@ -205,8 +215,8 @@ button[kind="secondary"]:disabled,
     box-shadow: none !important;
 }
 [data-testid="stChatInput"] > div {
-    background-color: __ACCENT__ !important;
-    border: 1px solid __BORDER__ !important;
+    background-color: __NAVY__ !important;
+    border: 1px solid __NAVY_DARK__ !important;
     border-radius: 1rem !important;
     box-shadow: none !important;
 }
@@ -224,27 +234,27 @@ button[kind="secondary"]:disabled,
 
 /* ---------- Other widgets that normally follow light/dark mode ---------- */
 [data-testid="stFileUploaderDropzone"] {
-    background-color: __SIDEBAR_BG__ !important;
-    border: 1px dashed __ACCENT__ !important;
+    background-color: __LIGHT_BLUE_SOFT__ !important;
+    border: 1px dashed __NAVY__ !important;
 }
-[data-testid="stFileUploaderDropzoneInstructions"] * { color: __TEXT__ !important; }
+[data-testid="stFileUploaderDropzoneInstructions"] * { color: __NAVY__ !important; }
 [data-testid="stExpander"] details {
-    background-color: rgba(255, 255, 255, 0.55) !important;
-    border: 1px solid __SOFT__ !important;
+    background-color: __LIGHT_BLUE_SOFT__ !important;
+    border: 1px solid __LIGHT_BLUE__ !important;
 }
-[data-testid="stExpander"] summary * { color: __TEXT__ !important; }
+[data-testid="stExpander"] summary * { color: __NAVY__ !important; }
 [data-baseweb="popover"] ul,
-[data-baseweb="menu"] { background-color: #FFF0F5 !important; }
-[data-baseweb="menu"] li, [data-baseweb="menu"] li * { color: __TEXT__ !important; }
+[data-baseweb="menu"] { background-color: __LIGHT_BLUE_SOFT__ !important; }
+[data-baseweb="menu"] li, [data-baseweb="menu"] li * { color: __NAVY__ !important; }
 
-/* ---------- Notes (st.info) are always the same blue ---------- */
+/* ---------- Notes (st.info) are always the same light blue ---------- */
 [data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]),
 [data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) [data-testid="stAlertContainer"] {
-    background-color: #DCEBFA !important;
+    background-color: __LIGHT_BLUE__ !important;
     border-radius: 0.5rem;
 }
 [data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) :is(p, span, li, strong, a) {
-    color: #0B3D6B !important;
+    color: __NAVY__ !important;
 }
 
 /* ---------- Calendar ---------- */
@@ -254,47 +264,47 @@ table.cal {
     border-collapse: separate; border-spacing: 4px;
 }
 table.cal th {
-    background: __ACCENT__; color: #ffffff; padding: 0.4rem;
+    background: __NAVY__; color: #ffffff; padding: 0.4rem;
     border-radius: 0.4rem; font-weight: 700; text-align: center;
 }
 table.cal td {
-    background: rgba(255, 255, 255, 0.7); color: __TEXT__;
+    background: __LIGHT_BLUE_SOFT__; color: __NAVY__;
     vertical-align: top; height: 96px; padding: 0.35rem;
-    border-radius: 0.5rem; border: 1px solid __SOFT__;
+    border-radius: 0.5rem; border: 1px solid __LIGHT_BLUE__;
 }
-table.cal td.other { background: rgba(255, 255, 255, 0.3); border-color: transparent; }
-table.cal td.today { border: 2px solid __ACCENT__; }
+table.cal td.other { background: transparent; border-color: transparent; }
+table.cal td.today { border: 2px solid __PINK_DEEP__; }
 .cal-num { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.2rem; }
 .chip {
     font-size: 0.72rem; line-height: 1.25; padding: 2px 6px;
     border-radius: 4px; margin-bottom: 2px; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap;
 }
-.chip-appt { background: __ACCENT__; color: #ffffff !important; }
-.chip-med { background: __SOFT__; color: __SOFT_TEXT__ !important; }
-.chip-more { font-size: 0.72rem; color: __TEXT__; }
+.chip-appt { background: __NAVY__; color: #ffffff !important; }
+.chip-med { background: __PINK__; color: __NAVY__ !important; }
+.chip-more { font-size: 0.72rem; color: __NAVY__; }
 .legend { display: flex; gap: 0.5rem; margin: 0.4rem 0 1rem 0; }
 .legend .chip { display: inline-block; font-size: 0.8rem; padding: 3px 10px; }
 
-/* ---------- Soft pink info box ---------- */
+/* ---------- Pink highlight box ---------- */
 .pink-box {
-    background-color: __SOFT__;
-    color: __SOFT_TEXT__;
+    background-color: __PINK__;
+    color: __NAVY__;
     padding: 1rem;
     border-radius: 0.5rem;
 }
 </style>
 """
 GLOBAL_CSS = (
-    GLOBAL_CSS.replace("__ACCENT__", ACCENT)
-    .replace("__HOVER__", ACCENT_HOVER)
-    .replace("__BORDER__", ACCENT_BORDER)
-    .replace("__FOCUS__", ACCENT_FOCUS)
-    .replace("__SOFT_TEXT__", SOFT_PINK_TEXT)
-    .replace("__SOFT__", SOFT_PINK)
-    .replace("__PAGE_BG__", PAGE_BG)
-    .replace("__SIDEBAR_BG__", SIDEBAR_BG)
-    .replace("__TEXT__", TEXT_DARK)
+    GLOBAL_CSS.replace("__NAVY_HOVER__", NAVY_HOVER)
+    .replace("__NAVY_DARK__", NAVY_DARK)
+    .replace("__NAVY__", NAVY)
+    .replace("__WHITE__", WHITE)
+    .replace("__LIGHT_BLUE_SOFT__", LIGHT_BLUE_SOFT)
+    .replace("__LIGHT_BLUE__", LIGHT_BLUE)
+    .replace("__PINK_DEEP__", PINK_DEEP)
+    .replace("__PINK__", PINK)
+    .replace("__LOGO_WIDTH__", str(LOGO_WIDTH_PX))
 )
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
@@ -866,11 +876,11 @@ def render_cpr():
         <style>@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700&display=swap');</style>
         <div style="font-family:'Nunito',sans-serif;">
           <button id="b" style="font-family:'Nunito',sans-serif;font-size:18px;padding:10px 20px;border-radius:8px;
-                  border:none;background:#d6336c;color:white;cursor:pointer;">
+                  border:none;background:__NAVY__;color:white;cursor:pointer;">
             ▶ Start beat
           </button>
           <span id="dot" style="display:inline-block;width:22px;height:22px;
-                border-radius:50%;background:#f3b6cb;margin-left:16px;
+                border-radius:50%;background:__PINK__;margin-left:16px;
                 vertical-align:middle;"></span>
         </div>
         <script>
@@ -883,8 +893,8 @@ def render_cpr():
             g.gain.setValueAtTime(0.25, ctx.currentTime);
             g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
             o.start(); o.stop(ctx.currentTime + 0.09);
-            dot.style.background = '#d6336c';
-            setTimeout(() => dot.style.background = '#f3b6cb', 100);
+            dot.style.background = '__NAVY__';
+            setTimeout(() => dot.style.background = '__PINK__', 100);
           }
           btn.onclick = () => {
             if (timer) {
@@ -896,7 +906,7 @@ def render_cpr():
             }
           };
         </script>
-        """,
+        """.replace("__NAVY__", NAVY).replace("__PINK__", PINK),
         height=70,
     )
 
