@@ -69,9 +69,9 @@ html, body, .stApp,
 [data-testid="stBottomBlockContainer"] {
     background-color: __WHITE__ !important;
 }
-[data-testid="stSidebar"] label p { font-size: 24px !important; }
+[data-testid="stSidebar"] label p { font-size: 20px !important; }
 
-/* Sidebar radio: the dot lines up with the FIRST line of a wrapped label */
+/* Sidebar radio: */
 [data-testid="stSidebar"] [data-testid="stRadio"] label {
     align-items: flex-start !important;
 }
