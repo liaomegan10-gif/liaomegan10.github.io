@@ -69,7 +69,7 @@ html, body, .stApp,
 [data-testid="stBottomBlockContainer"] {
     background-color: __WHITE__ !important;
 }
-[data-testid="stSidebar"] label p { font-size: 20px !important; }
+[data-testid="stSidebar"] label p { font-size: 18px !important; }
 
 /* Sidebar radio: */
 [data-testid="stSidebar"] [data-testid="stRadio"] label {
