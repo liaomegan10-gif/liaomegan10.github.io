@@ -25,7 +25,7 @@ WOUND_VIDEO = "https://www.youtube.com/watch?v=ZtrCNB2Jm9c"
 RECOVERY_VIDEO = "https://www.youtube.com/watch?v=GmqXqwSV3bo"
 
 st.set_page_config(
-    page_title="Health Translation",
+    page_title="Communicate Care",
     page_icon="🫀",
     layout="wide",
 )
@@ -1067,7 +1067,7 @@ LOGO_B64 = (
 # Sidebar navigation
 st.sidebar.markdown(
     f'<div class="brand"><img src="data:image/png;base64,{LOGO_B64}" alt="Logo">'
-    '<div class="brand-title">Healthcare Translator</div></div>',
+    '<div class="brand-title">Communicate Care</div></div>',
     unsafe_allow_html=True,
 )
 page = st.sidebar.radio(
