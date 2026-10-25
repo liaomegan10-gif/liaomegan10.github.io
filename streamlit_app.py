@@ -1,6 +1,5 @@
 import base64
 import io
-import os
 import re
 import uuid
 from urllib.parse import quote_plus
@@ -23,7 +22,6 @@ HEIMLICH_VIDEO = "https://www.youtube.com/watch?v=WmGRp84tPM8"
 AED_VIDEO = "https://www.youtube.com/watch?v=in8j2Q2z3HE"
 WOUND_VIDEO = "https://www.youtube.com/watch?v=ZtrCNB2Jm9c"
 RECOVERY_VIDEO = "https://www.youtube.com/watch?v=GmqXqwSV3bo"
-LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
 
 st.set_page_config(
     page_title="Health Translation",
@@ -31,20 +29,23 @@ st.set_page_config(
     layout="wide",
 )
 
-if os.path.exists(LOGO_PATH):
-    st.logo(LOGO_PATH, size="large", icon_image=LOGO_PATH)
-
 # Colors
-ACCENT = "#d6336c"        # same color as the "Start beat" button
+ACCENT = "#d6336c"        # buttons and text boxes (same as the "Start beat" button)
 ACCENT_HOVER = "#b82a5c"
 ACCENT_BORDER = "#a82255"
 ACCENT_FOCUS = "#7a1a3d"
 SOFT_PINK = "#f3b6cb"
 SOFT_PINK_TEXT = "#5A1F36"
+PAGE_BG = "#FFE4EC"
+SIDEBAR_BG = "#FFD1E0"
+TEXT_DARK = "#3B1F2B"
 
 GLOBAL_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&display=swap');
+
+/* Always look the same, whether the device is in light or dark mode */
+:root, .stApp { color-scheme: light; }
 
 /* ---------- Font: Nunito everywhere (icons keep their own font) ---------- */
 html, body, .stApp,
@@ -56,15 +57,22 @@ html, body, .stApp,
     font-family: 'Nunito', sans-serif !important;
 }
 
-/* ---------- Page colors ---------- */
-.stApp { background-color: #FFE4EC; }
-[data-testid="stHeader"] { background: transparent; }
-[data-testid="stSidebar"] { background-color: #FFD1E0; }
+/* ---------- Page colors (including the bar behind the chat box) ---------- */
+.stApp, [data-testid="stAppViewContainer"] { background-color: __PAGE_BG__ !important; }
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stSidebar"], [data-testid="stSidebar"] > div {
+    background-color: __SIDEBAR_BG__ !important;
+}
+[data-testid="stBottom"],
+[data-testid="stBottom"] > div,
+[data-testid="stBottomBlockContainer"] {
+    background-color: __PAGE_BG__ !important;
+}
 [data-testid="stSidebar"] label p { font-size: 24px !important; }
 .stApp h1, .stApp h2, .stApp h3, .stApp h4,
 .stApp p, .stApp li, .stApp label, .stApp span,
 [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
-    color: #3B1F2B;
+    color: __TEXT__;
 }
 
 /* Right-to-left languages (e.g. Arabic) align themselves automatically */
@@ -72,10 +80,39 @@ html, body, .stApp,
     unicode-bidi: plaintext;
     text-align: start;
 }
+[data-testid="stChatMessage"] {
+    background-color: rgba(255, 255, 255, 0.55) !important;
+    border-radius: 1rem;
+}
 
-/* ---------- Buttons ---------- */
+/* ---------- Sidebar brand: logo + title ---------- */
+.brand { text-align: center; margin: 0.25rem 0 1.5rem 0; }
+.brand img {
+    display: block;
+    width: 170px;
+    max-width: 70%;
+    height: auto;
+    margin: 0 auto 0.6rem auto;
+}
+.brand-title {
+    font-family: 'Nunito', sans-serif !important;
+    font-weight: 800;
+    font-size: 2.4rem;
+    line-height: 1.05;
+    letter-spacing: 0.5px;
+    color: __ACCENT__;
+    background: linear-gradient(90deg, __ACCENT__, __BORDER__);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ---------- Buttons (always pink) ---------- */
 .stButton > button,
 [data-testid="stFormSubmitButton"] > button,
+[data-testid="stDownloadButton"] > button,
+button[kind="secondary"], button[kind="primary"],
+button[kind="secondaryFormSubmit"], button[kind="primaryFormSubmit"],
 [data-testid="stBaseButton-secondary"],
 [data-testid="stBaseButton-primary"],
 [data-testid="stBaseButton-secondaryFormSubmit"],
@@ -88,13 +125,21 @@ html, body, .stApp,
 }
 .stButton > button :is(p, span),
 [data-testid="stFormSubmitButton"] > button :is(p, span),
-[data-testid^="stBaseButton"] :is(p, span),
+[data-testid="stDownloadButton"] > button :is(p, span),
+button[kind="secondary"] :is(p, span), button[kind="primary"] :is(p, span),
+button[kind="secondaryFormSubmit"] :is(p, span),
+button[kind="primaryFormSubmit"] :is(p, span),
+[data-testid^="stBaseButton-secondary"] :is(p, span),
+[data-testid^="stBaseButton-primary"] :is(p, span),
 [data-testid^="stBaseLinkButton"] :is(p, span),
 [data-testid="stLinkButton"] a :is(p, span) {
     color: #ffffff !important;
 }
 .stButton > button:hover,
 [data-testid="stFormSubmitButton"] > button:hover,
+[data-testid="stDownloadButton"] > button:hover,
+button[kind="secondary"]:hover, button[kind="primary"]:hover,
+button[kind="secondaryFormSubmit"]:hover, button[kind="primaryFormSubmit"]:hover,
 [data-testid="stBaseButton-secondary"]:hover,
 [data-testid="stBaseButton-primary"]:hover,
 [data-testid="stBaseButton-secondaryFormSubmit"]:hover,
@@ -105,6 +150,7 @@ html, body, .stApp,
     border-color: __HOVER__ !important;
 }
 .stButton > button:disabled,
+button[kind="secondary"]:disabled,
 [data-testid="stBaseButton-secondary"]:disabled { opacity: 0.5 !important; }
 
 /* ---------- Text fields: the OUTER box carries the color and border;
@@ -143,11 +189,17 @@ html, body, .stApp,
     border-color: __FOCUS__ !important;
 }
 
-/* ---------- Chat input box ---------- */
+/* ---------- Chat input box (no white/dark bar around it) ---------- */
+[data-testid="stChatInput"] {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
 [data-testid="stChatInput"] > div {
     background-color: __ACCENT__ !important;
     border: 1px solid __BORDER__ !important;
     border-radius: 1rem !important;
+    box-shadow: none !important;
 }
 [data-testid="stChatInput"] [data-baseweb="textarea"],
 [data-testid="stChatInput"] [data-baseweb="base-input"] {
@@ -158,7 +210,23 @@ html, body, .stApp,
 [data-testid="stChatInput"] svg {
     color: #ffffff !important;
     fill: #ffffff !important;
+    background-color: transparent !important;
 }
+
+/* ---------- Other widgets that normally follow light/dark mode ---------- */
+[data-testid="stFileUploaderDropzone"] {
+    background-color: __SIDEBAR_BG__ !important;
+    border: 1px dashed __ACCENT__ !important;
+}
+[data-testid="stFileUploaderDropzoneInstructions"] * { color: __TEXT__ !important; }
+[data-testid="stExpander"] details {
+    background-color: rgba(255, 255, 255, 0.55) !important;
+    border: 1px solid __SOFT__ !important;
+}
+[data-testid="stExpander"] summary * { color: __TEXT__ !important; }
+[data-baseweb="popover"] ul,
+[data-baseweb="menu"] { background-color: #FFF0F5 !important; }
+[data-baseweb="menu"] li, [data-baseweb="menu"] li * { color: __TEXT__ !important; }
 
 /* ---------- Soft pink info box ---------- */
 .pink-box {
@@ -174,8 +242,11 @@ GLOBAL_CSS = (
     .replace("__HOVER__", ACCENT_HOVER)
     .replace("__BORDER__", ACCENT_BORDER)
     .replace("__FOCUS__", ACCENT_FOCUS)
-    .replace("__SOFT__", SOFT_PINK)
     .replace("__SOFT_TEXT__", SOFT_PINK_TEXT)
+    .replace("__SOFT__", SOFT_PINK)
+    .replace("__PAGE_BG__", PAGE_BG)
+    .replace("__SIDEBAR_BG__", SIDEBAR_BG)
+    .replace("__TEXT__", TEXT_DARK)
 )
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
@@ -239,7 +310,8 @@ def upload_note():
         "them, they are sent to the Ollama service to generate the answer, so "
         "consider covering names or ID numbers you don't need to share.) "
         "Attachments aren't remembered, so re-upload for follow-up questions "
-        "about the same file. Formats accepted include: PNG, JPG, WEBP, PDF, TXT, MD and CSV files. You can also ask for answers in any language."
+        "about the same file. Formats accepted include: PNG, JPG, WEBP, PDF, "
+        "TXT, MD and CSV files. You can also ask for answers in any language."
     )
 
 
@@ -724,28 +796,142 @@ def render_cpr():
 
 
 # ----------------------------------------------------------------------------
+# Logo (embedded, so no separate image file is needed)
+# ----------------------------------------------------------------------------
+LOGO_B64 = (
+    "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"
+    "RK5CYII="
+)
+
+
+# ----------------------------------------------------------------------------
 # Sidebar navigation
 # ----------------------------------------------------------------------------
-st.sidebar.title("Healthcare Translator")
+st.sidebar.markdown(
+    f'<div class="brand"><img src="data:image/png;base64,{LOGO_B64}" alt="Logo">'
+    '<div class="brand-title">Healthcare Translator</div></div>',
+    unsafe_allow_html=True,
+)
 page = st.sidebar.radio(
     "Navigation",
     [
         "Care Dashboard",
-        "Chat",
-        "Plain-Language Translator",
+        "My Healthcare Translator",
         "Insurance Assistant",
         "Find Local Care",
         "Basic Life Support",
     ],
+    label_visibility="collapsed",
 )
 st.sidebar.caption(LANG_NOTE)
 
 # ----------------------------------------------------------------------------
 # Chat (general health translator)
 # ----------------------------------------------------------------------------
-if page == "Chat":
+if page == "My Healthcare Translator":
     st.title("🤖 My Healthcare Translator")
-    st.caption("Powered by Ollama")
+    st.caption(
+        "Powered by Ollama · Turn doctor or insurance jargon into plain language"
+    )
     upload_note()
 
     api_key = get_api_key()
@@ -760,7 +946,9 @@ if page == "Chat":
         "too many complicated words without defining them first. Start the "
         "message with a disclaimer that the information should be double checked "
         "with a physician and that the user should not completely trust "
-        "Artificial Intelligence. The user may attach screenshots, photos of "
+        "Artificial Intelligence. If the user pastes doctor or insurance jargon, "
+        "rewrite it in plain language and define every hard term. The user "
+        "may attach screenshots, photos of "
         "forms, or documents. When they do, read them carefully, translate any "
         "other language into plain English (or the user's language), and explain "
         "the content in simple terms. If something in an image is unreadable, "
@@ -1053,130 +1241,6 @@ elif page == "Basic Life Support":
                 "This is a quick overview, not a substitute for a certified "
                 "first-aid course. In an emergency, call 911 first."
             )
-
-# ----------------------------------------------------------------------------
-# Plain-Language Translator (jargon simplifier + translation)
-# ----------------------------------------------------------------------------
-elif page == "Plain-Language Translator":
-    st.title("🔤 Plain-Language Translator")
-    st.caption(
-        "Turn doctor or insurance jargon into plain language, in any language "
-        "you ask for."
-    )
-    st.info(
-        "Paste text, or upload a screenshot, a photo of a form, or a file. "
-        "Uploads are **not saved to a database**: they're only used to create "
-        "your answer and are not kept afterward. (To read them, they are sent "
-        "to the Ollama service, so consider covering names or ID numbers you "
-        "don't need to share.)"
-    )
-    api_key = get_api_key()
-
-    c1, c2 = st.columns(2)
-    source_kind = c1.radio(
-        "What kind of text is it?",
-        ["Doctor / medical", "Insurance / billing", "Not sure"],
-        horizontal=True,
-    )
-    level = c2.radio(
-        "How simple should it be?",
-        ["Very simple (like I'm 10)", "Everyday adult"],
-        horizontal=True,
-    )
-
-    jargon_text = st.text_area(
-        "Paste the text you want simplified",
-        height=200,
-        placeholder="Example: Your EOB shows a $1,200 deductible and 20% coinsurance after...",
-    )
-    jargon_files = st.file_uploader(
-        "Or upload a screenshot, photo, or file",
-        type=ATTACH_TYPES,
-        accept_multiple_files=True,
-    )
-    target_language = st.text_input(
-        "Language you want the answer in (optional)",
-        max_chars=40,
-        placeholder="Any language, e.g. Spanish, Vietnamese, Arabic...",
-        help="Leave blank to get the answer in the same language as your text.",
-    )
-    also_english = st.checkbox("Also include an English version")
-    lang_line = (
-        f"Respond entirely in {target_language.strip()}. Keep medical and "
-        "insurance terms accurate."
-        if target_language.strip()
-        else lang_instruction()
-    )
-
-    if st.button("Simplify & Translate"):
-        extracted, images, _names = read_attachments(jargon_files)
-        source_text = "\n\n".join(p for p in [jargon_text.strip(), extracted] if p)
-        if not source_text and not images:
-            st.warning("Please paste some text or upload a file first.")
-        else:
-            system_prompt = (
-                "You are a plain-language translator for patients and "
-                "families, including people with limited English. The user "
-                f"will give you {source_kind.lower()} text (pasted, or in an "
-                "attached image/file). " + lang_line + " "
-                f"Reading level: {level}. Use short sentences and everyday "
-                "words. Write the section headings in the output language and "
-                "use exactly these four sections:\n"
-                "1. Plain-language version: rewrite everything in simple "
-                "language, defining any technical word the first time it "
-                "appears.\n"
-                "2. Key terms: a list of 'term — meaning' for every hard "
-                "word, abbreviation, or insurance term in the original.\n"
-                "3. What this means for you: only what the text actually "
-                "says. Never invent numbers, deadlines, diagnoses, or "
-                "advice.\n"
-                "4. Questions to ask: 2-4 good questions to ask the doctor "
-                "or insurance company.\n"
-                "Start with one short line reminding the user to confirm "
-                "details with their doctor or insurer. If part of the text "
-                "or image is unreadable or incomplete, say so instead of "
-                "guessing."
-            )
-            if also_english:
-                system_prompt += (
-                    " After the four sections, add a final section titled "
-                    "'English' that repeats the same content in English."
-                )
-            user_msg = {
-                "role": "user",
-                "content": source_text or "Please simplify the attached image.",
-            }
-            if images:
-                user_msg["images"] = images
-            with st.spinner("Simplifying..."):
-                try:
-                    st.session_state.simplified = ollama_chat(
-                        [{"role": "system", "content": system_prompt}, user_msg],
-                        api_key,
-                        model=VISION_MODEL if images else CHAT_MODEL,
-                    )
-                except requests.exceptions.RequestException:
-                    st.error(NETWORK_ERROR)
-                except (KeyError, ValueError):
-                    st.error(BAD_RESPONSE_ERROR)
-
-    if st.session_state.get("simplified"):
-        with st.chat_message("assistant"):
-            st.markdown(st.session_state.simplified)
-
-    with st.expander("Quick glossary: common insurance words"):
-        st.markdown(
-            """
-- **Premium:** what you pay every month to keep your insurance.
-- **Deductible:** what you pay yourself each year before insurance starts to help.
-- **Copay:** a flat fee you pay for a visit or prescription (like $25).
-- **Coinsurance:** your share of a bill, as a percent, after you meet your deductible.
-- **Out-of-pocket maximum:** the most you'll pay in a year. After that, insurance pays 100% of covered care.
-- **In-network:** doctors and hospitals that have a deal with your insurance. They cost less.
-- **Prior authorization:** approval from your insurance you may need before a test or treatment.
-- **EOB (Explanation of Benefits):** a statement showing what was billed and what insurance paid. It is *not* a bill.
-"""
-        )
 
 # ----------------------------------------------------------------------------
 # Find Local Care (ZIP code search for clinics, urgent care, emergency services)
