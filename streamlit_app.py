@@ -1974,7 +1974,7 @@ install_translation_layer()
 _tx_banner = st.empty()  # shows "Translating..." messages at the top of the page
 st.sidebar.markdown(
     f'<div class="brand"><img src="data:image/png;base64,{LOGO_B64}" alt="Logo">'
-    '<div class="brand-title">Healthcare Translator</div></div>',
+    '<div class="brand-title">CommuniCare</div></div>',
     unsafe_allow_html=True,
 )
 page = st.sidebar.radio(
