@@ -1,20 +1,26 @@
+import ast
 import base64
 import calendar
 import datetime as dt
 import html
 import io
+import json
 import re
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote_plus
 
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
-
+# ----------------------------------------------------------------------------
+# Config
+# ----------------------------------------------------------------------------
 OLLAMA_URL = "https://ollama.com/api/chat"
-CHAT_MODEL = "gemma4:31b"   
-VISION_MODEL = "gemma4:31b" 
+CHAT_MODEL = "gemma4:31b"    # Use a model available to your Ollama account.
+VISION_MODEL = "gemma4:31b"  # Must be an image-capable (multimodal) model.
 
 TOURNIQUET_VIDEO = "https://www.youtube.com/watch?v=k98ilfQmUWw"
 NARCAN_VIDEO = "https://www.youtube.com/watch?v=xa7X00_QKWk"
@@ -25,11 +31,14 @@ WOUND_VIDEO = "https://www.youtube.com/watch?v=ZtrCNB2Jm9c"
 RECOVERY_VIDEO = "https://www.youtube.com/watch?v=GmqXqwSV3bo"
 
 st.set_page_config(
-    page_title="Communicate Care",
+    page_title="Health Translation",
     page_icon="🫀",
     layout="wide",
 )
-# COLOR SCHEME + LOGO SIZE
+
+# ============================================================================
+# COLOR SCHEME + LOGO SIZE  (change these values to restyle the whole app)
+# ============================================================================
 LOGO_WIDTH_PX = 130          # <-- LOGO SIZE: make this number bigger or smaller
 
 NAVY = "#1B2A4A"             # buttons, text boxes, title, body text
@@ -69,9 +78,9 @@ html, body, .stApp,
 [data-testid="stBottomBlockContainer"] {
     background-color: __WHITE__ !important;
 }
-[data-testid="stSidebar"] label p { font-size: 18px !important; }
+[data-testid="stSidebar"] label p { font-size: 24px !important; }
 
-/* Sidebar radio: */
+/* Sidebar radio: the dot lines up with the FIRST line of a wrapped label */
 [data-testid="stSidebar"] [data-testid="stRadio"] label {
     align-items: flex-start !important;
 }
@@ -281,6 +290,31 @@ table.cal td.today { border: 2px solid __PINK_DEEP__; }
 .legend { display: flex; gap: 0.5rem; margin: 0.4rem 0 1rem 0; }
 .legend .chip { display: inline-block; font-size: 0.8rem; padding: 3px 10px; }
 
+/* ---------- Add-a-task form: black text on light fields ---------- */
+[data-testid="stForm"] [data-baseweb="input"],
+[data-testid="stForm"] [data-baseweb="textarea"] {
+    background-color: __LIGHT_BLUE_SOFT__ !important;
+    border: 1px solid __NAVY__ !important;
+}
+[data-testid="stForm"] [data-baseweb="base-input"],
+[data-testid="stForm"] [data-baseweb="input"] input,
+[data-testid="stForm"] [data-baseweb="textarea"] textarea,
+[data-testid="stForm"] [data-testid="stTextInput"] input,
+[data-testid="stForm"] [data-testid="stTextArea"] textarea,
+[data-testid="stForm"] [data-testid="stDateInput"] input {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    caret-color: #000000 !important;
+}
+[data-testid="stForm"] [data-baseweb="input"] input::placeholder,
+[data-testid="stForm"] [data-baseweb="textarea"] textarea::placeholder {
+    color: rgba(0, 0, 0, 0.5) !important;
+    -webkit-text-fill-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Language menu in the sidebar: normal-size label */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] label p { font-size: 1rem !important; }
+
 /* ---------- Pink highlight box ---------- */
 .pink-box {
     background-color: __PINK__;
@@ -303,7 +337,10 @@ GLOBAL_CSS = (
 )
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
-# Ollama setup and stuff
+
+# ----------------------------------------------------------------------------
+# Helpers
+# ----------------------------------------------------------------------------
 def get_api_key():
     """Load the Ollama API key from Streamlit Secrets (stops the page if missing)."""
     try:
@@ -341,7 +378,10 @@ NETWORK_ERROR = (
 BAD_RESPONSE_ERROR = "Ollama returned an unexpected response."
 
 
-# Upload helpers (files are read in memory only: nothing is written to disk or to a database, and images/files are not kept in the chat history)
+# ----------------------------------------------------------------------------
+# Upload helpers (files are read in memory only: nothing is written to disk
+# or to a database, and images/files are not kept in the chat history)
+# ----------------------------------------------------------------------------
 ATTACH_TYPES = ["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv"]
 IMAGE_EXTS = ("png", "jpg", "jpeg", "webp")
 MAX_FILE_CHARS = 12000
@@ -414,14 +454,19 @@ def show_images(files):
         if f.name.lower().rsplit(".", 1)[-1] in IMAGE_EXTS:
             st.image(f, width=300)
 
+
+# ----------------------------------------------------------------------------
 # Basic Life Support topics
+# To use a different video, replace the "video" URL for that topic.
+# A topic with "video": None shows a YouTube search link instead.
+# ----------------------------------------------------------------------------
 BLS_TOPICS = {
     "cpr": {
         "label": "CPR Training",
         "title": "CPR Training",
         "video": None,
         "search": "how to do hands-only CPR American Heart Association",
-        "body": ""
+        "body": "",  # CPR has its own interactive page (render_cpr)
     },
     "tourniquet": {
         "label": "Tourniquet tying",
@@ -609,16 +654,302 @@ move them to keep them breathing.
 }
 
 
-# Language help
+# ----------------------------------------------------------------------------
+# Language help (menu in the sidebar + users can also just ask for a language)
+# ----------------------------------------------------------------------------
 LANG_NOTE = "Answers can be translated into any language. Just ask!"
+
+# label shown in the menu -> settings used for AI answers and voice control
+LANGUAGES = {
+    "English": {"name": "English", "speech": "en-US", "next": [], "back": []},
+    "Español (Spanish)": {
+        "name": "Spanish", "speech": "es-ES",
+        "next": ["siguiente", "adelante", "continuar"],
+        "back": ["atrás", "anterior", "regresar"],
+    },
+    "中文 (Mandarin Chinese)": {
+        "name": "Mandarin Chinese (Simplified characters)", "speech": "zh-CN",
+        "next": ["下一步", "下一个", "继续"],
+        "back": ["上一步", "返回", "后退"],
+    },
+    "Tiếng Việt (Vietnamese)": {
+        "name": "Vietnamese", "speech": "vi-VN",
+        "next": ["tiếp theo", "tiếp"],
+        "back": ["quay lại", "trước"],
+    },
+    "العربية (Arabic)": {
+        "name": "Arabic", "speech": "ar-SA",
+        "next": ["التالي", "التالية", "التالى"],
+        "back": ["السابق", "رجوع", "للخلف"],
+    },
+    "한국어 (Korean)": {
+        "name": "Korean", "speech": "ko-KR",
+        "next": ["다음"],
+        "back": ["이전", "뒤로"],
+    },
+    "Русский (Russian)": {
+        "name": "Russian", "speech": "ru-RU",
+        "next": ["далее", "дальше", "следующий"],
+        "back": ["назад", "предыдущий"],
+    },
+    "हिन्दी (Hindi)": {
+        "name": "Hindi", "speech": "hi-IN",
+        "next": ["अगला", "आगे"],
+        "back": ["पीछे", "पिछला"],
+    },
+    "Français (French)": {
+        "name": "French", "speech": "fr-FR",
+        "next": ["suivant", "suite"],
+        "back": ["retour", "précédent"],
+    },
+    "Tagalog (Filipino)": {
+        "name": "Tagalog", "speech": "fil-PH",
+        "next": ["susunod"],
+        "back": ["bumalik"],
+    },
+    "Português (Portuguese)": {
+        "name": "Portuguese", "speech": "pt-BR",
+        "next": ["próximo", "avançar"],
+        "back": ["voltar", "anterior"],
+    },
+}
+
+
+def current_language():
+    lang = st.session_state.get("language", "English")
+    return lang if lang in LANGUAGES else "English"
 
 
 def lang_instruction():
+    name = LANGUAGES[current_language()]["name"]
+    if name == "English":
+        return (
+            "Respond in the language the user writes in. If the user asks for a "
+            "different language (any language), respond in that language. Keep "
+            "medical and insurance terms accurate."
+        )
     return (
-        "Respond in the language the user writes in. If the user asks for a "
-        "different language (any language), respond in that language. Keep "
-        "medical and insurance terms accurate."
+        f"Respond entirely in {name}, unless the user explicitly asks for a "
+        "different language. Keep medical and insurance terms accurate."
     )
+
+
+# ----------------------------------------------------------------------------
+# Whole-page translation
+#
+# How it works: when a language other than English is chosen, every fixed piece
+# of text in this app (titles, buttons, notes, labels, lessons...) is translated
+# by the Ollama model the first time it is shown, then remembered, so the next
+# visit to that page is instant. Text you type and chat answers are NOT
+# re-translated. Nothing below needs to be edited to add or change page text:
+# any text written in this file is picked up automatically.
+# ----------------------------------------------------------------------------
+@st.cache_resource
+def translation_store():
+    """Shared memory of translations: {(language, english_text): translated}."""
+    return {}
+
+
+@st.cache_resource
+def ui_strings():
+    """Every fixed piece of text written in this file (found by reading the code)."""
+    try:
+        with open(__file__, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+    except Exception:
+        return frozenset()
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            s = node.value
+            if (
+                len(s.strip()) >= 2
+                and len(s) < 6000
+                and re.search(r"[A-Za-z]", s)
+                and "base64" not in s
+                and "<style" not in s
+            ):
+                found.add(s)
+    return frozenset(found)
+
+
+_HTML_TAG = re.compile(r"</?[A-Za-z][^>]*>")
+
+
+def tx(text, force=False):
+    """Return `text` in the chosen language (or queue it for translation)."""
+    lang = current_language()
+    if lang == "English" or not isinstance(text, str) or not text.strip():
+        return text
+    if not force and text not in ui_strings():
+        return text  # typed by the user or generated by the AI: leave alone
+    if _HTML_TAG.search(text):
+        return text
+    hit = translation_store().get((lang, text))
+    if hit is not None:
+        return hit
+    st.session_state.setdefault("_tx_pending", set()).add(text)
+    return text
+
+
+_TX_FUNCS = (
+    "title", "header", "subheader", "caption", "markdown", "info", "success",
+    "warning", "error", "toast", "write", "button", "link_button", "checkbox",
+    "toggle", "text_input", "text_area", "date_input", "time_input",
+    "number_input", "selectbox", "radio", "multiselect", "select_slider",
+    "file_uploader", "camera_input", "expander", "metric",
+    "form_submit_button", "download_button", "chat_input", "spinner",
+)
+_TX_CHOICE = ("selectbox", "radio", "multiselect", "select_slider")
+
+
+def _format_option(option):
+    return tx(option) if isinstance(option, str) else str(option)
+
+
+def _make_wrapper(name, original, skip_self):
+    first = 1 if skip_self else 0
+
+    def wrapper(*args, **kwargs):
+        if current_language() != "English":
+            args = list(args)
+            if len(args) > first and isinstance(args[first], str):
+                args[first] = tx(args[first])
+            for k in ("placeholder", "help"):
+                if isinstance(kwargs.get(k), str):
+                    kwargs[k] = tx(kwargs[k])
+            if (
+                name in _TX_CHOICE
+                and "format_func" not in kwargs
+                and len(args) <= first + 3
+            ):
+                kwargs["format_func"] = _format_option
+        return original(*args, **kwargs)
+
+    return wrapper
+
+
+def install_translation_layer():
+    """Make Streamlit's text commands translate fixed text automatically."""
+    from streamlit.delta_generator import DeltaGenerator
+
+    if not hasattr(DeltaGenerator, "_tx_originals"):
+        DeltaGenerator._tx_originals = {
+            n: getattr(DeltaGenerator, n) for n in _TX_FUNCS if hasattr(DeltaGenerator, n)
+        }
+        st._tx_originals = {n: getattr(st, n) for n in _TX_FUNCS if hasattr(st, n)}
+    for n, original in DeltaGenerator._tx_originals.items():
+        setattr(DeltaGenerator, n, _make_wrapper(n, original, True))
+    for n, original in st._tx_originals.items():
+        setattr(st, n, _make_wrapper(n, original, False))
+
+
+def translate_strings(strings, language_name, api_key):
+    """Translate many short texts with a few Ollama requests."""
+    batches, current, size = [], [], 0
+    for s in strings:
+        if current and size + len(s) > 5000:
+            batches.append(current)
+            current, size = [], 0
+        current.append(s)
+        size += len(s)
+    if current:
+        batches.append(current)
+
+    system_prompt = (
+        "You are a professional translator for a healthcare web app. Translate "
+        f"each numbered segment from English into {language_name}. Segments are "
+        "labels, headings, buttons, notes, or short lessons. Rules: (1) Keep all "
+        "Markdown (**bold**, lists, numbering, line breaks) and any HTML tags "
+        "exactly as they are. (2) Keep numbers, phone numbers (911, 988), URLs, "
+        "emoji and symbols such as ▶ ← → ■ unchanged. (3) Keep names and "
+        "acronyms such as Ollama, Narcan, AED, CPR, BE FAST, Heimlich; you may "
+        "add the standard local term in parentheses. (4) Keep anything in curly "
+        "braces unchanged. (5) Medical and safety wording must be accurate and "
+        "simple. (6) Do not add explanations. Output format: for each segment, "
+        "write @@[N]@@ on its own line, then the translation of segment N. "
+        "Output nothing else."
+    )
+
+    def run(batch):
+        numbered = "\n".join(f"@@[{i}]@@\n{s}" for i, s in enumerate(batch, 1))
+        try:
+            out = ollama_chat(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": numbered},
+                ],
+                api_key,
+                options={"temperature": 0},
+            )
+        except Exception:
+            return None
+        found = {}
+        for m in re.finditer(r"@@\[(\d+)\]@@\s*(.*?)(?=@@\[\d+\]@@|\Z)", out, re.S):
+            i = int(m.group(1))
+            if 1 <= i <= len(batch) and m.group(2).strip():
+                found[batch[i - 1]] = m.group(2).strip()
+        return found
+
+    results, failures = {}, 0
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for part in pool.map(run, batches):
+            if part is None:
+                failures += 1
+            else:
+                results.update(part)
+    if batches and failures == len(batches):
+        raise RuntimeError("translation request failed")
+    return results
+
+
+def finish_translation(banner):
+    """Translate anything this page needed, then redraw the page translated."""
+    lang = current_language()
+    pending = st.session_state.get("_tx_pending") or set()
+    st.session_state["_tx_pending"] = set()
+    if lang == "English" or not pending:
+        return
+    if time.time() < st.session_state.get("_tx_retry_after", 0):
+        return
+    try:
+        api_key = st.secrets["OLLAMA_API_KEY"]
+    except (KeyError, FileNotFoundError):
+        banner.warning("Add OLLAMA_API_KEY in Secrets to translate pages.")
+        return
+
+    name = LANGUAGES[lang]["name"]
+    banner.info(
+        f"Translating this page into {name}... this takes a moment the first "
+        "time. Next time it will be instant."
+    )
+    store = translation_store()
+    todo = sorted(s for s in pending if (lang, s) not in store)
+    try:
+        results = translate_strings(todo, name, api_key) if todo else {}
+    except Exception:
+        st.session_state["_tx_retry_after"] = time.time() + 60
+        banner.warning(
+            "Couldn't translate this page right now. Please try again in a minute."
+        )
+        return
+
+    tries = st.session_state.setdefault("_tx_tries", {})
+    for s in todo:
+        if s in results:
+            store[(lang, s)] = results[s]
+        else:
+            tries[(lang, s)] = tries.get((lang, s), 0) + 1
+            if tries[(lang, s)] >= 2:  # give up on this one: keep the English
+                store[(lang, s)] = s
+    banner.empty()
+    st.rerun()
+
+
+def stop_page():
+    """Like st.stop(), but finishes any pending translation first."""
+    finish_translation(_tx_banner)
+    st.stop()
 
 
 def refusal_reply(user_text, key):
@@ -641,7 +972,9 @@ def refusal_reply(user_text, key):
     )
 
 
-# Local care zip code finder
+# ----------------------------------------------------------------------------
+# Local care helpers
+# ----------------------------------------------------------------------------
 CARE_CATEGORIES = {
     "Low-cost community health centers": "community health center sliding fee near {zip}",
     "Free clinics": "free clinic near {zip}",
@@ -694,9 +1027,19 @@ if "cal_year" not in st.session_state:
     _today = dt.date.today()
     st.session_state.cal_year = _today.year
     st.session_state.cal_month = _today.month
+if "ins_step" not in st.session_state:
+    st.session_state.ins_step = 0
+if "ins_answers" not in st.session_state:
+    st.session_state.ins_answers = {}
+if "ins_done" not in st.session_state:
+    st.session_state.ins_done = False
+if "cpr_live" not in st.session_state:
+    st.session_state.cpr_live = False
 
 
+# ----------------------------------------------------------------------------
 # Calendar helpers (appointments and medicine reminders)
+# ----------------------------------------------------------------------------
 REPEAT_OPTIONS = ["Does not repeat", "Daily", "Weekly", "Monthly"]
 DOSE_UNITS = [
     "mg", "mcg", "g", "mL", "tablet(s)", "capsule(s)", "drop(s)",
@@ -742,17 +1085,17 @@ def short_label(ev):
 
 def summary_line(ev):
     if ev["kind"] == "Appointment":
-        who = f" with {ev['doctor']}" if ev["doctor"] else ""
-        return f"Appointment: {ev['title']}{who}"
-    return f"Take {ev['title']} ({ev['dose']})"
+        who = f" {tx('with')} {ev['doctor']}" if ev["doctor"] else ""
+        return f"{tx('Appointment')}: {ev['title']}{who}"
+    return f"{tx('Take')} {ev['title']} ({ev['dose']})"
 
 
 def repeat_text(ev):
     if ev["repeat"] == "Does not repeat":
-        return "One time"
-    text = f"Repeats {ev['repeat'].lower()}"
+        return tx("One time")
+    text = f"{tx('Repeats')}: {tx(ev['repeat'])}"
     if ev["until"]:
-        text += f" until {fmt_date(ev['until'])}"
+        text += f" · {tx('until')} {fmt_date(ev['until'])}"
     return text
 
 
@@ -783,7 +1126,7 @@ def render_calendar(year, month):
     cal = calendar.Calendar(firstweekday=6)
     rows = [
         '<div class="cal-wrap"><table class="cal"><tr>'
-        + "".join(f"<th>{d}</th>" for d in WEEKDAYS)
+        + "".join(f"<th>{tx(d)}</th>" for d in WEEKDAYS)
         + "</tr>"
     ]
     for week in cal.monthdatescalendar(year, month):
@@ -801,7 +1144,7 @@ def render_calendar(year, month):
                     f"{html.escape(short_label(ev))}</div>"
                 )
             if len(evs) > 3:
-                chips += f'<div class="chip-more">+{len(evs) - 3} more</div>'
+                chips += f'<div class="chip-more">+{len(evs) - 3} {tx("more")}</div>'
             cls = "today" if day == today else ""
             rows.append(
                 f'<td class="{cls}"><div class="cal-num">{day.day}</div>{chips}</td>'
@@ -809,20 +1152,560 @@ def render_calendar(year, month):
         rows.append("</tr>")
     rows.append("</table></div>")
     rows.append(
-        '<div class="legend"><div class="chip chip-appt">Appointment</div>'
-        '<div class="chip chip-med">Medicine reminder</div></div>'
+        f'<div class="legend"><div class="chip chip-appt">{tx("Appointment")}</div>'
+        f'<div class="chip chip-med">{tx("Medicine reminder")}</div></div>'
     )
     st.markdown("".join(rows), unsafe_allow_html=True)
 
-# CPR training (shown as a Basic Life Support subpage)
 
+# ----------------------------------------------------------------------------
+# Insurance quiz (full-screen intake that unlocks the Insurance Assistant)
+# Edit INSURANCE_QUIZ to change, add, or remove questions.
+# ----------------------------------------------------------------------------
+INSURANCE_QUIZ = [
+    {
+        "id": "who",
+        "q": "Who needs coverage?",
+        "options": [
+            "Just me",
+            "Me and my spouse or partner",
+            "Me and my children",
+            "My whole family",
+        ],
+    },
+    {
+        "id": "age",
+        "q": "What is your age range?",
+        "options": ["Under 26", "26 to 49", "50 to 64", "65 or older"],
+    },
+    {
+        "id": "income",
+        "q": "About how much is your household's yearly income, before taxes?",
+        "options": [
+            "Under $20,000",
+            "$20,000 to $40,000",
+            "$40,000 to $75,000",
+            "$75,000 to $120,000",
+            "Over $120,000",
+        ],
+        "help": "This helps check for savings programs like Medicaid or marketplace subsidies.",
+    },
+    {
+        "id": "budget",
+        "q": "How much can you comfortably spend on insurance each month?",
+        "options": ["Under $100", "$100 to $250", "$250 to $500", "Over $500"],
+        "help": "This monthly payment is called the premium.",
+    },
+    {
+        "id": "visits",
+        "q": "How often do you expect to see a doctor in the next year?",
+        "options": [
+            "Rarely (checkups only)",
+            "A few times a year",
+            "Monthly or more",
+            "I have an ongoing health condition",
+        ],
+    },
+    {
+        "id": "meds",
+        "q": "Do you take prescription medicines regularly?",
+        "options": [
+            "No",
+            "1 or 2 medicines",
+            "3 or more medicines",
+            "Yes, including expensive specialty medicines",
+        ],
+    },
+    {
+        "id": "tradeoff",
+        "q": "Which would you prefer?",
+        "options": [
+            "Lower monthly cost, but pay more when I get care",
+            "Higher monthly cost, but pay less when I get care",
+            "I'm not sure",
+        ],
+    },
+    {
+        "id": "doctor",
+        "q": "Is there a doctor or hospital you want to keep?",
+        "options": [
+            "Yes, I must keep them",
+            "I'd like to, but it's not required",
+            "No",
+        ],
+    },
+    {
+        "id": "current",
+        "q": "What is your coverage situation right now?",
+        "options": [
+            "I have no insurance",
+            "Through my employer",
+            "A marketplace or individual plan",
+            "Medicare or Medicaid",
+            "Other or not sure",
+        ],
+    },
+    {
+        "id": "major",
+        "q": "Do you expect major care soon, like surgery, pregnancy, or treatment?",
+        "options": ["No", "Maybe", "Yes"],
+    },
+]
+
+FULLSCREEN_CSS = """
+<style>
+[data-testid="stSidebar"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] { display: none !important; }
+[data-testid="stMainBlockContainer"], .block-container {
+    max-width: 820px !important;
+    min-height: 100vh;
+    padding-top: 8vh !important;
+}
+body .stApp, body [data-testid="stAppViewContainer"] {
+    background-color: __BG__ !important;
+}
+[data-testid="stRadio"] label p { font-size: 1.2rem !important; }
+</style>
+""".replace("__BG__", LIGHT_BLUE_SOFT)
+
+
+def quiz_advance():
+    st.session_state.ins_step += 1
+    if st.session_state.ins_step >= len(INSURANCE_QUIZ):
+        st.session_state.ins_done = True
+
+
+def quiz_next(qid):
+    st.session_state.ins_answers[qid] = st.session_state.get(f"quiz_{qid}")
+    quiz_advance()
+
+
+def quiz_skip(qid):
+    st.session_state.ins_answers[qid] = None
+    quiz_advance()
+
+
+def quiz_back():
+    st.session_state.ins_step = max(0, st.session_state.ins_step - 1)
+
+
+def quiz_skip_all():
+    st.session_state.ins_done = True
+
+
+def quiz_retake():
+    for q in INSURANCE_QUIZ:
+        st.session_state.pop(f"quiz_{q['id']}", None)
+    st.session_state.ins_step = 0
+    st.session_state.ins_answers = {}
+    st.session_state.ins_done = False
+
+
+def insurance_profile_text(translated=False):
+    """The quiz answers as bullet lines (English for the AI, translated to show)."""
+    lines = []
+    for q in INSURANCE_QUIZ:
+        answer = st.session_state.ins_answers.get(q["id"])
+        if answer:
+            if translated:
+                lines.append(f"- {tx(q['q'])} **{tx(answer)}**")
+            else:
+                lines.append(f"- {q['q']} {answer}")
+    return "\n".join(lines)
+
+
+def render_insurance_quiz():
+    """Full-screen quiz. Every question can be skipped."""
+    st.markdown(FULLSCREEN_CSS, unsafe_allow_html=True)
+    step = st.session_state.ins_step
+    total = len(INSURANCE_QUIZ)
+    q = INSURANCE_QUIZ[step]
+
+    st.progress(step / total)
+    st.caption(f"{tx('Question')} {step + 1} {tx('of')} {total}")
+    if step == 0:
+        st.title("Find the plan that fits you")
+        st.write(
+            "Answer a few quick questions so the Insurance Assistant can "
+            "tailor its advice. You can skip any question. Your answers stay "
+            "in this session and are sent to Ollama along with your questions."
+        )
+    st.header(q["q"])
+    if q.get("help"):
+        st.caption(q["help"])
+    choice = st.radio(
+        "Choose one",
+        q["options"],
+        index=None,
+        key=f"quiz_{q['id']}",
+        label_visibility="collapsed",
+    )
+
+    c1, c2, c3 = st.columns(3)
+    c1.button(
+        "← Back", key="quiz_back", on_click=quiz_back,
+        disabled=step == 0, use_container_width=True,
+    )
+    c2.button(
+        "Skip", key="quiz_skip", on_click=quiz_skip, args=(q["id"],),
+        use_container_width=True,
+    )
+    last = step == total - 1
+    c3.button(
+        "Finish" if last else "Next →", key="quiz_next", on_click=quiz_next,
+        args=(q["id"],), disabled=choice is None, use_container_width=True,
+    )
+    st.button("Skip the whole quiz", key="quiz_skip_all", on_click=quiz_skip_all)
+
+
+# ----------------------------------------------------------------------------
+# CPR live teaching mode (full-screen walkthrough with a beat that tints the screen)
+# ----------------------------------------------------------------------------
+CPR_BPM = 110  # compressions per minute (guideline range is 100-120)
+
+CPR_LIVE_STEPS = [
+    {
+        "title": "Check the scene",
+        "text": "Make sure the area is safe. Tap their shoulders and shout, “Are you OK?”",
+    },
+    {
+        "title": "Call 911",
+        "text": "Call 911 or ask someone nearby to call. Put the phone on speaker. Ask someone to bring an AED if one is nearby.",
+    },
+    {
+        "title": "Check for breathing",
+        "text": "Look at the chest for no more than 10 seconds. If they are not breathing, or are only gasping, start CPR.",
+    },
+    {
+        "title": "Lay them on their back",
+        "text": "Place the person face up on a firm, flat surface. Kneel beside their chest.",
+    },
+    {
+        "title": "Place your hands",
+        "text": "Put the heel of one hand on the center of the chest, on the lower half of the breastbone. Put your other hand on top and lace your fingers together.",
+    },
+    {
+        "title": "Position your body",
+        "text": "Lock your elbows straight. Bring your shoulders directly over your hands so you can push straight down with your body weight.",
+    },
+    {
+        "title": "Push to the beat",
+        "text": "Push hard and fast, at least 2 inches (5 cm) deep. Let the chest rise fully between pushes. The screen flashes with every push, so push each time it changes color.",
+        "beat": True,
+    },
+    {
+        "title": "Keep going",
+        "text": "Do not stop until help arrives, an AED is ready, or the person starts to move. If someone else can help, switch every 2 minutes.",
+    },
+    {
+        "title": "When an AED arrives",
+        "text": "Turn it on and follow its voice prompts. Stick the pads on the bare chest, stand clear while it checks, then keep doing CPR when it tells you to.",
+    },
+    {
+        "title": "You finished the walkthrough",
+        "text": "Great work. This was practice. Take a certified CPR course (American Heart Association or Red Cross) for hands-on training. In a real emergency, call 911 first.",
+    },
+]
+
+CPR_LIVE_UI = {
+    "step_of": "Step {n} of {total}",
+    "next": "Next",
+    "back": "Back",
+    "restart": "Start over",
+    "voice_on": "Voice control: On",
+    "voice_off": "Voice control: Off",
+    "sound_on": "Beat sound: On",
+    "sound_off": "Beat sound: Off",
+    "flash_on": "Screen flash: On",
+    "flash_off": "Screen flash: Off",
+    "fullscreen": "Full screen",
+    "push": "PUSH",
+    "compressions": "Compressions",
+    "listening": "Listening... say “next” or “back”.",
+    "no_voice": "Voice control isn't supported in this browser. Use the buttons instead.",
+    "mic_blocked": "Microphone access was blocked. Allow the microphone to use voice control.",
+}
+
+CPR_LIVE_HTML = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap');
+* { box-sizing: border-box; }
+html, body { margin: 0; font-family: 'Nunito', sans-serif; color: __NAVY__; }
+#stage {
+    min-height: 700px; height: 100%; background: __SOFT__; border-radius: 16px;
+    padding: 24px 28px; display: flex; flex-direction: column;
+    transition: background-color 0.08s linear;
+}
+#stage.tint { background: __FLASH__; }
+#stage:fullscreen { border-radius: 0; min-height: 100vh; }
+#top { display: flex; align-items: center; gap: 16px; }
+#count { font-weight: 700; white-space: nowrap; }
+#progress { flex: 1; height: 10px; background: __LIGHT__; border-radius: 6px; overflow: hidden; }
+#bar { height: 100%; width: 0; background: __NAVY__; transition: width 0.25s; }
+#body {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; max-width: 780px;
+    width: 100%; margin: 0 auto;
+}
+#title { font-size: 2.6rem; font-weight: 800; margin: 0 0 14px 0; line-height: 1.1; }
+#text { font-size: 1.55rem; line-height: 1.5; margin: 0; }
+#beatbox { margin-top: 26px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+#beatbox[hidden] { display: none; }
+#circle {
+    width: 150px; height: 150px; border-radius: 50%; background: __NAVY__;
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 1.7rem; font-weight: 800; transition: transform 0.1s;
+}
+#circle.pulse { transform: scale(1.14); }
+#counter { font-size: 1.2rem; font-weight: 700; }
+#nav { display: flex; gap: 14px; justify-content: center; margin: 18px 0 14px 0; }
+button {
+    font-family: 'Nunito', sans-serif; cursor: pointer; border-radius: 10px;
+    border: 1px solid __NAVY__;
+}
+#nav button {
+    font-size: 1.25rem; font-weight: 700; padding: 14px 34px;
+    background: __NAVY__; color: #fff; min-width: 170px;
+}
+#nav button:disabled { opacity: 0.4; cursor: default; }
+#opts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.opt { font-size: 0.95rem; font-weight: 700; padding: 9px 16px; background: #fff; color: __NAVY__; }
+.opt.on { background: __NAVY__; color: #fff; }
+#status { text-align: center; min-height: 1.4em; margin-top: 10px; font-weight: 700; }
+</style>
+
+<div id="stage" tabindex="0">
+  <div id="top"><div id="count"></div><div id="progress"><div id="bar"></div></div></div>
+  <div id="body">
+    <h1 id="title"></h1>
+    <p id="text"></p>
+    <div id="beatbox" hidden>
+      <div id="circle"><span id="push"></span></div>
+      <div id="counter"></div>
+    </div>
+  </div>
+  <div id="nav"><button id="back"></button><button id="next"></button></div>
+  <div id="opts">
+    <button class="opt" id="voice"></button>
+    <button class="opt" id="sound"></button>
+    <button class="opt" id="flash"></button>
+    <button class="opt" id="fs"></button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+const D = __DATA__;
+const steps = D.steps, ui = D.ui, BPM = D.bpm;
+const $ = (id) => document.getElementById(id);
+const stage = $('stage');
+let idx = 0, beatTimer = null, count = 0;
+let soundOn = true, flashOn = true, voiceOn = false;
+let ctx = null, rec = null, lastCmd = 0, handled = new Set();
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function ensureAudio() {
+  try {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+  } catch (e) {}
+}
+function beep() {
+  if (!soundOn || !ctx) return;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+  g.gain.setValueAtTime(0.25, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+  o.start(); o.stop(ctx.currentTime + 0.09);
+}
+function beat() {
+  count += 1;
+  $('counter').textContent = ui.compressions + ': ' + count;
+  if (flashOn) {
+    stage.classList.add('tint');
+    setTimeout(() => stage.classList.remove('tint'), 230);
+  }
+  $('circle').classList.add('pulse');
+  setTimeout(() => $('circle').classList.remove('pulse'), 230);
+  beep();
+  if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
+}
+function stopBeat() {
+  if (beatTimer) clearTimeout(beatTimer);
+  beatTimer = null;
+  stage.classList.remove('tint');
+}
+function startBeat() {
+  stopBeat();
+  count = 0;
+  $('counter').textContent = ui.compressions + ': 0';
+  ensureAudio();
+  const interval = 60000 / BPM, t0 = performance.now();
+  let n = 0;
+  (function tick() {
+    beat();
+    n += 1;
+    beatTimer = setTimeout(tick, Math.max(0, t0 + n * interval - performance.now()));
+  })();
+}
+
+function updateToggles() {
+  const set = (id, on, onText, offText) => {
+    $(id).textContent = on ? onText : offText;
+    $(id).classList.toggle('on', on);
+  };
+  set('voice', voiceOn, ui.voice_on, ui.voice_off);
+  set('sound', soundOn, ui.sound_on, ui.sound_off);
+  set('flash', flashOn, ui.flash_on, ui.flash_off);
+  $('fs').textContent = ui.fullscreen;
+}
+function render() {
+  const s = steps[idx];
+  $('title').textContent = s.title;
+  $('text').textContent = s.text;
+  $('push').textContent = ui.push;
+  $('count').textContent = ui.step_of.replace('{n}', idx + 1).replace('{total}', steps.length);
+  $('bar').style.width = ((idx + 1) / steps.length * 100) + '%';
+  $('back').textContent = '← ' + ui.back;
+  $('back').disabled = idx === 0;
+  $('next').textContent = idx === steps.length - 1 ? ui.restart : ui.next + ' →';
+  $('beatbox').hidden = !s.beat;
+  if (s.beat) startBeat(); else stopBeat();
+  updateToggles();
+}
+function go(d) {
+  if (d > 0 && idx === steps.length - 1) idx = 0;
+  else idx = Math.min(steps.length - 1, Math.max(0, idx + d));
+  render();
+}
+
+function setStatus(msg) { $('status').textContent = msg || ''; }
+function handleSpeech(text, i) {
+  if (handled.has(i)) return;
+  const now = Date.now();
+  if (now - lastCmd < 1200) return;
+  if (D.backWords.some((w) => text.includes(w))) { lastCmd = now; handled.add(i); go(-1); }
+  else if (D.nextWords.some((w) => text.includes(w))) { lastCmd = now; handled.add(i); go(1); }
+}
+function startVoice() {
+  if (!SR) { setStatus(ui.no_voice); return; }
+  ensureAudio();
+  voiceOn = true;
+  rec = new SR();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = D.voiceLang;
+  rec.onstart = () => { handled = new Set(); };
+  rec.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      handleSpeech(e.results[i][0].transcript.toLowerCase(), i);
+    }
+  };
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      voiceOn = false; setStatus(ui.mic_blocked); updateToggles();
+    }
+  };
+  rec.onend = () => {
+    if (voiceOn) setTimeout(() => { try { rec.start(); } catch (err) {} }, 250);
+  };
+  try { rec.start(); setStatus(ui.listening); } catch (err) {}
+  updateToggles();
+}
+function stopVoice() {
+  voiceOn = false;
+  if (rec) { try { rec.stop(); } catch (e) {} }
+  setStatus('');
+  updateToggles();
+}
+
+$('next').onclick = () => { ensureAudio(); go(1); };
+$('back').onclick = () => go(-1);
+$('voice').onclick = () => (voiceOn ? stopVoice() : startVoice());
+$('sound').onclick = () => { soundOn = !soundOn; ensureAudio(); updateToggles(); };
+$('flash').onclick = () => { flashOn = !flashOn; updateToggles(); };
+$('fs').onclick = () => {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (stage.requestFullscreen) stage.requestFullscreen();
+  } catch (e) {}
+};
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+});
+render();
+</script>
+"""
+
+
+def start_cpr_live():
+    st.session_state.cpr_live = True
+
+
+def stop_cpr_live():
+    st.session_state.cpr_live = False
+
+
+def render_cpr_live():
+    """The live teaching screen (runs in the browser so the beat is exact)."""
+    voice = LANGUAGES[current_language()]
+    data = {
+        "steps": [
+            {
+                "title": tx(s["title"]),
+                "text": tx(s["text"]),
+                "beat": bool(s.get("beat")),
+            }
+            for s in CPR_LIVE_STEPS
+        ],
+        "ui": {k: tx(v) for k, v in CPR_LIVE_UI.items()},
+        "bpm": CPR_BPM,
+        "voiceLang": voice["speech"],
+        "nextWords": ["next", "continue", "go on"] + voice["next"],
+        "backWords": ["back", "previous", "go back"] + voice["back"],
+    }
+    page_html = (
+        CPR_LIVE_HTML.replace("__NAVY__", NAVY)
+        .replace("__SOFT__", LIGHT_BLUE_SOFT)
+        .replace("__LIGHT__", LIGHT_BLUE)
+        .replace("__FLASH__", PINK_DEEP)
+        .replace("__DATA__", json.dumps(data).replace("</", "<\\/"))
+    )
+    components.html(page_html, height=760)
+
+
+HIDE_SIDEBAR_CSS = """
+<style>
+[data-testid="stSidebar"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] { display: none !important; }
+</style>
+"""
+
+
+# ----------------------------------------------------------------------------
+# CPR training (shown as a Basic Life Support subpage)
+# ----------------------------------------------------------------------------
 def render_cpr():
+    if st.session_state.cpr_live:
+        st.markdown(HIDE_SIDEBAR_CSS, unsafe_allow_html=True)
+        st.button("Exit live teaching", on_click=stop_cpr_live, key="cpr_exit_live")
+        st.info(
+            "Click Next for each step, or turn on voice control and say "
+            "“next” or “back”. During the compressions step the screen "
+            "flashes with every push."
+        )
+        render_cpr_live()
+        return
+
     st.info(
         "Practice on a firm pillow, cushion, or training manikin. "
         "Never practice compressions on a real person who doesn't need CPR."
     )
 
-    #Step 1: instructions
+    # ---- Step 1: instructions ----
     st.header("Step 1: Learn the basics (adult, hands-only CPR)")
     st.markdown(
         """
@@ -844,7 +1727,7 @@ def render_cpr():
         """
     )
 
-    #Step 2: rhythm
+    # ---- Step 2: rhythm ----
     st.header("Step 2: Practice the rhythm")
     st.caption("Press start and push to the beat (110 beats per minute).")
     components.html(
@@ -853,7 +1736,7 @@ def render_cpr():
         <div style="font-family:'Nunito',sans-serif;">
           <button id="b" style="font-family:'Nunito',sans-serif;font-size:18px;padding:10px 20px;border-radius:8px;
                   border:none;background:__NAVY__;color:white;cursor:pointer;">
-            ▶ Start beat
+            __START_HTML__
           </button>
           <span id="dot" style="display:inline-block;width:22px;height:22px;
                 border-radius:50%;background:__PINK__;margin-left:16px;
@@ -874,19 +1757,23 @@ def render_cpr():
           }
           btn.onclick = () => {
             if (timer) {
-              clearInterval(timer); timer = null; btn.textContent = '▶ Start beat';
+              clearInterval(timer); timer = null; btn.textContent = __START_JS__;
             } else {
               ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
               beep(); timer = setInterval(beep, 60000 / 110);
-              btn.textContent = '■ Stop beat';
+              btn.textContent = __STOP_JS__;
             }
           };
         </script>
-        """.replace("__NAVY__", NAVY).replace("__PINK__", PINK),
+        """.replace("__NAVY__", NAVY)
+        .replace("__PINK__", PINK)
+        .replace("__START_HTML__", html.escape("▶ " + tx("Start beat", force=True)))
+        .replace("__START_JS__", json.dumps("▶ " + tx("Start beat", force=True)))
+        .replace("__STOP_JS__", json.dumps("■ " + tx("Stop beat", force=True))),
         height=70,
     )
 
-    #Step 3: camera placement check
+    # ---- Step 3: camera placement check ----
     st.header("Step 3: Check your placement with the camera")
     ready = st.checkbox("I've read the instructions above and I'm ready to practice")
 
@@ -957,8 +1844,24 @@ def render_cpr():
                 "or Red Cross) for hands-on training."
             )
 
+    # ---- Live teaching mode ----
+    st.header("Live teaching mode")
+    st.write(
+        "Want a guided walkthrough? Live teaching mode takes over the screen "
+        "and walks you through each step of CPR. Click Next for each step, or "
+        "turn on voice control and say “next.” During compressions the screen "
+        "flashes with the beat."
+    )
+    st.button("Start live teaching mode", on_click=start_cpr_live, key="cpr_live_start")
+    st.caption(
+        "Voice control uses your browser's speech recognition and needs "
+        "microphone permission. It works in Chrome, Edge, and Safari."
+    )
 
+
+# ----------------------------------------------------------------------------
 # Logo (embedded, so no separate image file is needed)
+# ----------------------------------------------------------------------------
 LOGO_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAPAAAAEQCAMAAAC5uAmWAAAAwFBMVEXdWFuwUlV9PDy4WWCvOmyiISFgVVXfNjb/AP/oFnCs"
     "rKx/En/xpKQA//+yZy7xeA3//wB/fwamWKbiXqAA/wCqqlUAAP8Af3+5WGD/f/8AAH8AAAC3WV24WF2vV1f/AAC4WVy4WV24"
@@ -1064,10 +1967,14 @@ LOGO_B64 = (
 )
 
 
+# ----------------------------------------------------------------------------
 # Sidebar navigation
+# ----------------------------------------------------------------------------
+install_translation_layer()
+_tx_banner = st.empty()  # shows "Translating..." messages at the top of the page
 st.sidebar.markdown(
     f'<div class="brand"><img src="data:image/png;base64,{LOGO_B64}" alt="Logo">'
-    '<div class="brand-title">Communicate Care</div></div>',
+    '<div class="brand-title">Healthcare Translator</div></div>',
     unsafe_allow_html=True,
 )
 page = st.sidebar.radio(
@@ -1083,8 +1990,16 @@ page = st.sidebar.radio(
     label_visibility="collapsed",
 )
 st.sidebar.caption(LANG_NOTE)
+st.sidebar.selectbox(
+    "Translate this page",
+    list(LANGUAGES),
+    key="language",
+    format_func=str,
+)
 
+# ----------------------------------------------------------------------------
 # Chat (general health translator)
+# ----------------------------------------------------------------------------
 if page == "My Healthcare Translator":
     st.title("My Healthcare Translator")
     st.caption(
@@ -1159,12 +2074,23 @@ if page == "My Healthcare Translator":
                 except (KeyError, ValueError):
                     st.error(BAD_RESPONSE_ERROR)
 
+# ----------------------------------------------------------------------------
 # Insurance assistant (separate bot, insurance questions only)
-
+# ----------------------------------------------------------------------------
 elif page == "Insurance Assistant":
+    if not st.session_state.ins_done:
+        render_insurance_quiz()
+        stop_page()
+
     st.title("Insurance Plan Assistant")
     st.caption("Powered by Ollama · Insurance questions only")
     upload_note()
+    with st.expander("Your quiz answers"):
+        st.markdown(
+            insurance_profile_text(translated=True)
+            or tx("You skipped every question.")
+        )
+        st.button("Retake the quiz", on_click=quiz_retake, key="quiz_retake")
 
     api_key = get_api_key()
 
@@ -1184,6 +2110,17 @@ elif page == "Insurance Assistant":
         "that plan details vary and should be confirmed with their insurer or "
         "a licensed agent. " + lang_instruction()
     )
+    quiz_profile = insurance_profile_text()
+    if quiz_profile:
+        insurance_system_prompt += (
+            " The user completed an intake quiz (skipped questions are "
+            "unknown). Use these answers to tailor which kinds of plans may "
+            "fit them (for example Medicaid, Medicare, marketplace subsidies, "
+            "HMO, PPO, or high-deductible plans) and explain the trade-offs. "
+            "Never promise eligibility, prices, or coverage, and remind them "
+            "to confirm with healthcare.gov, their state marketplace, or a "
+            "licensed agent. Quiz answers:\n" + quiz_profile
+        )
 
 
     def is_insurance_question(history, latest_text, images, key):
@@ -1294,12 +2231,6 @@ elif page == "Care Dashboard":
     col2.metric("Completed", completed)
     col3.metric("Remaining", remaining)
 
-    st.subheader("Today's Priorities")
-    st.info("Morning medication reminder")
-    st.markdown(
-        '<div class="pink-box">Appointment confirmed</div>', unsafe_allow_html=True
-    )
-
     # ---- Add a task ----
     st.header("Add a Care Task")
     with st.form("task_form", clear_on_submit=True):
@@ -1319,7 +2250,7 @@ elif page == "Care Dashboard":
                     "done": False,
                 }
             )
-            st.toast(f"Task added: {task.strip()}")
+            st.toast(f"{tx('Task added')}: {task.strip()}")
             st.rerun()  # refresh so the counts above update
         else:
             st.warning("Please enter a task name.")
@@ -1331,14 +2262,14 @@ elif page == "Care Dashboard":
         st.write("No tasks yet. Add one above! 🎉")
     for t in active:
         st.checkbox(
-            f"{t['name']} — due {t['due']}",
+            f"{t['name']} — {tx('due')} {t['due']}",
             key=f"done_{t['id']}",
             on_change=complete_task,
             args=(t["id"],),
             help="Check to mark this task as complete",
         )
         if t["notes"]:
-            st.caption(f"Notes: {t['notes']}")
+            st.caption(f"{tx('Notes')}: {t['notes']}")
 
     # ---- Completed tasks ----
     st.header("Completed")
@@ -1346,9 +2277,9 @@ elif page == "Care Dashboard":
     if not done_tasks:
         st.write("Nothing completed yet.")
     for t in done_tasks:
-        st.markdown(f"✅ ~~{t['name']}~~ (due {t['due']})")
+        st.markdown(f"✅ ~~{t['name']}~~ ({tx('due')} {t['due']})")
         if t["notes"]:
-            st.caption(f"Notes: {t['notes']}")
+            st.caption(f"{tx('Notes')}: {t['notes']}")
     if done_tasks:
         st.button("Clear completed tasks", on_click=clear_completed)
 
@@ -1383,7 +2314,7 @@ elif page == "Appointments & Reminders":
     n3.button("Today", on_click=go_today, key="cal_today", use_container_width=True)
 
     cal_year, cal_month = st.session_state.cal_year, st.session_state.cal_month
-    st.subheader(f"{calendar.month_name[cal_month]} {cal_year}")
+    st.subheader(f"{tx(calendar.month_name[cal_month], force=True)} {cal_year}")
     render_calendar(cal_year, cal_month)
 
     # ---- Add an item ----
@@ -1482,7 +2413,7 @@ elif page == "Appointments & Reminders":
                 }
             )
             st.session_state.form_nonce += 1  # gives the form fresh, empty fields
-            st.toast(f"Added: {title.strip()}")
+            st.toast(f"{tx('Added')}: {title.strip()}")
             st.rerun()
 
     # ---- Everything on the calendar ----
@@ -1492,23 +2423,23 @@ elif page == "Appointments & Reminders":
         st.write("Nothing added yet.")
     for ev in items:
         with st.container(border=True):
-            st.markdown(f"**{short_label(ev)}** · {ev['kind']}")
+            st.markdown(f"**{short_label(ev)}** · {tx(ev['kind'])}")
             st.write(
-                f"{fmt_date(ev['date'])} at {fmt_time(ev['time'])} · {repeat_text(ev)}"
+                f"{fmt_date(ev['date'])} {tx('at')} {fmt_time(ev['time'])} · {repeat_text(ev)}"
             )
             if ev["kind"] == "Appointment":
                 if ev["location"]:
-                    st.write(f"Location: {ev['location']}")
+                    st.write(f"{tx('Location')}: {ev['location']}")
                 contact = []
                 if ev["doctor"]:
-                    contact.append(f"**Physician:** {ev['doctor']}")
+                    contact.append(f"**{tx('Physician')}:** {ev['doctor']}")
                 if ev["specialty"]:
-                    contact.append(f"**Specialty/clinic:** {ev['specialty']}")
+                    contact.append(f"**{tx('Specialty or clinic')}:** {ev['specialty']}")
                 if ev["phone"]:
                     digits = re.sub(r"[^\d+]", "", ev["phone"])
-                    contact.append(f"**Phone:** [{ev['phone']}](tel:{digits})")
+                    contact.append(f"**{tx('Phone')}:** [{ev['phone']}](tel:{digits})")
                 if ev["email"]:
-                    contact.append(f"**Email:** [{ev['email']}](mailto:{ev['email']})")
+                    contact.append(f"**{tx('Email')}:** [{ev['email']}](mailto:{ev['email']})")
                 if contact:
                     st.markdown("  \n".join(contact))
             if ev["notes"]:
@@ -1520,8 +2451,9 @@ elif page == "Appointments & Reminders":
                 args=(ev["id"],),
             )
 
+# ----------------------------------------------------------------------------
 # Basic Life Support
-
+# ----------------------------------------------------------------------------
 elif page == "Basic Life Support":
     def open_view(name):
         st.session_state.bls_view = name
@@ -1566,8 +2498,9 @@ elif page == "Basic Life Support":
                 "first-aid course. In an emergency, call 911 first."
             )
 
+# ----------------------------------------------------------------------------
 # Find Local Care (ZIP code search for clinics, urgent care, emergency services)
-
+# ----------------------------------------------------------------------------
 elif page == "Find Local Care":
     st.title("Find Local Care")
     st.info(
@@ -1587,7 +2520,7 @@ elif page == "Find Local Care":
         else:
             place = lookup_zip(zip_code)
             if place:
-                st.success(f"Showing results near {place} ({zip_code})")
+                st.success(f"{tx('Showing results near')} {place} ({zip_code})")
             else:
                 st.warning(
                     "I couldn't confirm that ZIP code, but you can still try "
@@ -1642,3 +2575,8 @@ elif page == "Find Local Care":
     d1.link_button("Find a Health Center (HRSA)", "https://findahealthcenter.hrsa.gov")
     d2.link_button("Find a Free Clinic", "https://nafcclinics.org")
     d3.link_button("211 Local Help", "https://www.211.org")
+
+# ----------------------------------------------------------------------------
+# Finish any translation this page needed (keep this as the LAST lines)
+# ----------------------------------------------------------------------------
+finish_translation(_tx_banner)
